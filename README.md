@@ -3,9 +3,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zero Telemetry](https://img.shields.io/badge/Telemetry-Zero%20%2F%20None-brightgreen.svg)](#-privacy--security-model)
-[![100% Offline Core](https://img.shields.io/badge/Core-100%25%20On--Device-orange.svg)](#-architecture)
+[![100% Offline Core](https://img.shields.io/badge/Core-100%25%20On--Device-orange.svg)](#-privacy--security-model)
 [![Android Compatibility](https://img.shields.io/badge/Android-8.0%2B%20(API%2026%2B)-green.svg)](#)
-[![F-Droid Ready](https://img.shields.io/badge/F--Droid-Ready-blue.svg)](#-f-droid-compliance)
 
 ---
 
@@ -89,47 +88,6 @@ To deliver reliable, autonomous on-device protection, Pause uses the following A
 
 ---
 
-## 📦 F-Droid Compliance & Packaging
-
-Pause is designed from the ground up to comply with F-Droid inclusion policies:
-
-1. **100% Free & Open Source**: Licensed under the OSI-approved [MIT License](LICENSE).
-2. **Zero Proprietary Blobs**: No non-free Google Play Services dependencies or binary tracking libraries.
-3. **Reproducible Builds**: Uses standard Gradle toolchains with standard Android SDK dependencies.
-4. **Fastlane Metadata**: Pre-configured in `fastlane/metadata/android/en-US/`:
-   * `title.txt`
-   * `short_description.txt`
-   * `full_description.txt`
-
-### F-Droid Metadata Recipe Sample (`metadata/com.aistudio.smsforwarder.qxyz.yml`)
-```yaml
-Categories:
-  - Security
-  - System
-  - Phone & SMS
-License: MIT
-SourceCode: https://github.com/karanraj-ux/Goohle-studio-apk
-IssueTracker: https://github.com/karanraj-ux/Goohle-studio-apk/issues
-
-AutoUpdateMode: Version
-UpdateCheckMode: Tags
-CurrentVersion: 1.0
-CurrentVersionCode: 1
-
-RepoType: git
-Repo: https://github.com/karanraj-ux/Goohle-studio-apk.git
-
-Builds:
-  - versionName: 1.0
-    versionCode: 1
-    commit: v1.0
-    subdir: app
-    gradle:
-      - yes
-```
-
----
-
 ## 🛠️ Building From Source
 
 ### Prerequisites
@@ -139,14 +97,10 @@ Builds:
 ### Build Commands
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/karanraj-ux/Goohle-studio-apk.git
-cd Goohle-studio-apk
-
-# 2. Run unit tests
+# Run unit tests
 gradle :app:testDebugUnitTest
 
-# 3. Build release APK
+# Build release APK
 gradle :app:assembleRelease
 ```
 
