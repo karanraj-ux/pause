@@ -101,7 +101,7 @@ fun WelcomeOnboardingScreen(onComplete: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Welcome to Shield",
+                text = "Welcome to Pause",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -111,7 +111,7 @@ fun WelcomeOnboardingScreen(onComplete: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
             
             Text(
-                text = "Your personal assistant that filters noise, protects your privacy, and automates your digital life.",
+                text = "Your sovereign call gatekeeper, DND VIP bypass, and automated focus responder.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -122,14 +122,19 @@ fun WelcomeOnboardingScreen(onComplete: () -> Unit) {
             
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 WelcomeFeatureItem(
-                    icon = Icons.Default.CloudOff,
-                    title = "100% Offline Architecture",
-                    description = "No cloud servers. Everything executes securely on-device."
+                    icon = Icons.Default.Security,
+                    title = "Focus Shield & Call Gatekeeper",
+                    description = "Reject unknown WhatsApp & phone calls automatically when focus mode is on."
                 )
                 WelcomeFeatureItem(
-                    icon = Icons.Default.VerifiedUser,
-                    title = "Absolute Privacy",
-                    description = "We never collect, upload, or share your data."
+                    icon = Icons.Rounded.VpnKey,
+                    title = "Starred Contact DND Bypass",
+                    description = "Allow Starred family & VIP contacts to break through silent mode in emergencies."
+                )
+                WelcomeFeatureItem(
+                    icon = Icons.Default.CloudOff,
+                    title = "Zero Cloud & 100% Offline Core",
+                    description = "Hardware-encrypted local database. No cloud tracking or telemetry."
                 )
             }
         }

@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -94,6 +95,8 @@ fun AutoReplyTab(viewModel: MainViewModel) {
         )
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    var testBotInput by remember { mutableStateOf("") }
+    var testBotResult by remember { mutableStateOf<com.example.shield.BotInterpretationResult?>(null) }
 
     val hasSmsPerm = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == android.content.pm.PackageManager.PERMISSION_GRANTED
     val hasCallLogPerm = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -141,43 +144,42 @@ fun AutoReplyTab(viewModel: MainViewModel) {
         if (uri != null) {
             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val cursor = context.contentResolver.query(uri, null, null, null, null)
-                    if (cursor != null && cursor.moveToFirst()) {
-                        val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
-                        val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
-                        val nameIndex = cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
-                        
-                        if (hasPhoneIndex >= 0 && idIndex >= 0) {
-                            val hasPhone = cursor.getInt(hasPhoneIndex)
-                            val name = if (nameIndex >= 0) cursor.getString(nameIndex) else "Unknown"
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
+                            val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
+                            val nameIndex = cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
                             
-                            if (hasPhone > 0) {
-                                val id = cursor.getString(idIndex)
-                                val phones = context.contentResolver.query(
-                                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI, 
-                                    null, 
-                                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?", 
-                                    arrayOf(id), 
-                                    null
-                                )
-                                if (phones != null && phones.moveToFirst()) {
-                                    val numIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                                    if (numIndex >= 0) {
-                                        val number = phones.getString(numIndex)
-                                        // Just storing name for display, ideally we'd store name & number
-                                        val currentList = settingsState.autoReplyRestrictedNumbers
-                                        val newList = if (currentList.isEmpty()) name else "$currentList,$name"
-                                        settingsViewModel.updateAutoReplyRestrictedNumbers(newList)
+                            if (hasPhoneIndex >= 0 && idIndex >= 0) {
+                                val hasPhone = cursor.getInt(hasPhoneIndex)
+                                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else "Unknown"
+                                
+                                if (hasPhone > 0) {
+                                    val id = cursor.getString(idIndex)
+                                    context.contentResolver.query(
+                                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI, 
+                                        null, 
+                                        ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?", 
+                                        arrayOf(id), 
+                                        null
+                                    )?.use { phones ->
+                                        if (phones.moveToFirst()) {
+                                            val numIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                                            if (numIndex >= 0) {
+                                                val number = phones.getString(numIndex)
+                                                val currentList = settingsState.autoReplyRestrictedNumbers
+                                                val newList = if (currentList.isEmpty()) name else "$currentList,$name"
+                                                settingsViewModel.updateAutoReplyRestrictedNumbers(newList)
+                                            }
+                                        }
                                     }
-                                    phones.close()
+                                } else {
+                                    val currentList = settingsState.autoReplyRestrictedNumbers
+                                    val newList = if (currentList.isEmpty()) name else "$currentList,$name"
+                                    settingsViewModel.updateAutoReplyRestrictedNumbers(newList)
                                 }
-                            } else {
-                                val currentList = settingsState.autoReplyRestrictedNumbers
-                                val newList = if (currentList.isEmpty()) name else "$currentList,$name"
-                                settingsViewModel.updateAutoReplyRestrictedNumbers(newList)
                             }
                         }
-                        cursor.close()
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -191,7 +193,7 @@ fun AutoReplyTab(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(24.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        // 1. Top Section: Switch and Title
+        // 1. Top Section: Triggers & Explanation
         item {
             Card(
                 modifier = Modifier
@@ -200,7 +202,22 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
+                Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "When to Auto-Reply",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Choose the triggers that prompt Pause to send an automated SMS reply.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+
+                    // Missed Calls Trigger
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -211,15 +228,20 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.Quickreply, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Rounded.PhoneMissed, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Missed Calls",
-                                style = MaterialTheme.typography.titleMedium,
+                                "On Missed Phone Calls",
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "Sends an SMS when you miss a call",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(
@@ -239,8 +261,7 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
+                    // Incoming SMS Trigger
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -256,10 +277,15 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Incoming SMS",
-                                style = MaterialTheme.typography.titleMedium,
+                                "On Incoming SMS Messages",
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "Sends an SMS reply when someone texts you",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(
@@ -279,141 +305,450 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                         )
                     }
 
-                    if (!settingsState.autoRespondMissedCall && !settingsState.autoRespondSms) {
-                        Spacer(modifier = Modifier.height(16.dp))
+                    // Incoming WhatsApp Trigger
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0xFF25D366).copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Message, contentDescription = null, tint = Color(0xFF25D366))
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "On Incoming WhatsApp Chats",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "Direct offline auto-reply via notification listener",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settingsState.autoRespondWhatsapp,
+                            onCheckedChange = { isChecked ->
+                                if (isChecked) {
+                                    val notifEnabled = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+                                    if (notifEnabled) {
+                                        settingsViewModel.updateAutoRespondWhatsapp(true)
+                                    } else {
+                                        val intent = android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                        context.startActivity(intent)
+                                        settingsViewModel.updateAutoRespondWhatsapp(true)
+                                    }
+                                } else {
+                                    settingsViewModel.updateAutoRespondWhatsapp(false)
+                                }
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF25D366))
+                        )
+                    }
+
+                    if (!settingsState.autoRespondMissedCall && !settingsState.autoRespondSms && !settingsState.autoRespondWhatsapp) {
                         Text(
-                            "When active, Shield will politely text people who try to reach you while you're busy.",
+                            "Turn on one or more triggers above to activate smart auto-replies.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
         }
-        
-        // 2. Chat UI for Custom Message
+
+        // WhatsApp Offline Bot & Message Interpreter Card
         item {
-            AnimatedVisibility(
-                visible = settingsState.autoRespondMissedCall || settingsState.autoRespondSms,
-                enter = expandVertically(),
-                exit = shrinkVertically()
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(6.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    // Tiered Auto-Reply Messages
-                    Card(
-                        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "Customize Your Replies",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            OutlinedTextField(
-                                value = settingsState.vipReplyMsg,
-                                onValueChange = { settingsViewModel.updateVipReplyMsg(it) },
-                                label = { Text("VIPs (Inner Circle)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = settingsState.standardReplyMsg,
-                                onValueChange = { settingsViewModel.updateStandardReplyMsg(it) },
-                                label = { Text("Saved Contacts (Standard)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = settingsState.unknownReplyMsg,
-                                onValueChange = { settingsViewModel.updateUnknownReplyMsg(it) },
-                                label = { Text("Strangers (Unknown Numbers)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(Color(0xFF25D366).copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Quickreply, contentDescription = null, tint = Color(0xFF25D366))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "WhatsApp Focus Shield & Auto-Reply",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "Call Shield • Starred DND Bypass • Auto-Reply",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF25D366),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
+                        Switch(
+                            checked = settingsState.whatsappBotEnabled,
+                            onCheckedChange = { isChecked ->
+                                settingsViewModel.updateWhatsappBotEnabled(isChecked)
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF25D366))
+                        )
                     }
 
-                    // Relationship Tiers Card
+                    Text(
+                        "When Focus Mode is on, Pause rejects unknown WhatsApp calls, allows starred/VIP contacts through DND silent mode, and instantly sends your chosen auto-reply message over the internet to incoming chats.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+
+                    // Showcase: Everyday WhatsApp Sleep / Morning Auto-Reply
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(4.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF075E54).copy(alpha = 0.08f)),
+                        border = BorderStroke(1.dp, Color(0xFF25D366).copy(alpha = 0.3f))
                     ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp).fillMaxWidth()
-                        ) {
-                            Text("Who gets Auto-Replies?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.ChatBubble, contentDescription = null, tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Everyday Example: Peaceful Morning & Sleep Shield",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                             Text(
-                                "Auto-Responder integrates directly with your Relationship Tiers. You don't need to manually pick people.",
+                                "When someone texts 'Good morning!' while you are asleep or in focus mode, Pause answers instantly over the internet with your pre-set response:",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            ListItem(
-                                headlineContent = { Text("Inner Circle (VIPs)") },
-                                supportingContent = { Text("Will receive auto-replies if you miss their call") },
-                                leadingContent = { Icon(Icons.Rounded.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+
+                            // Simulated Incoming WhatsApp Bubble
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(topStart = 0.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                        Text("Friend / Partner", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF25D366))
+                                        Text("Good morning! Are you awake yet? ☕", style = MaterialTheme.typography.bodySmall)
+                                        Text("07:15 AM", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.End))
+                                    }
+                                }
+                            }
+
+                            // Simulated Auto-Reply WhatsApp Bubble
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                Surface(
+                                    color = Color(0xFFDCF8C6),
+                                    shape = RoundedCornerShape(topStart = 12.dp, topEnd = 0.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                        Text("Pause (Auto-Reply)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF075E54))
+                                        Text("Still resting! Phone is on silent until 8:30 AM. Will catch up shortly ☀️", style = MaterialTheme.typography.bodySmall, color = Color.Black)
+                                        Row(modifier = Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                                            Text("07:15 AM", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(Icons.Rounded.DoneAll, contentDescription = null, tint = Color(0xFF34B7F1), modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+
+                    Text(
+                        "Supported Offline Commands",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    val commands = listOf(
+                        Triple("#urgent", "Bypasses silent mode & sounds emergency alarm for 15s", MaterialTheme.colorScheme.error),
+                        Triple("#status", "Returns current Silent Guard state & deflected call count", MaterialTheme.colorScheme.primary),
+                        Triple("#callback", "Registers caller on high-priority callback queue", MaterialTheme.colorScheme.secondary),
+                        Triple("#dnd", "Checks active quiet hours and schedules", MaterialTheme.colorScheme.tertiary),
+                        Triple("#ping", "Verifies offline bot responsiveness instantly", MaterialTheme.colorScheme.primary)
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        commands.forEach { (cmd, desc, tint) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    color = tint.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = cmd,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = tint,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = desc,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+
+                    // Custom keyword mapping
+                    Text(
+                        "Custom Bot Keywords (Optional)",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    OutlinedTextField(
+                        value = settingsState.whatsappBotCustomKeywords,
+                        onValueChange = { settingsViewModel.updateWhatsappBotCustomKeywords(it) },
+                        label = { Text("e.g. office -> At office today.; lunch -> Back by 2 PM.") },
+                        placeholder = { Text("keyword -> reply message; keyword2 -> reply2") },
+                        supportingText = { Text("Separate multiple rules with semicolons (;)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        minLines = 1,
+                        maxLines = 3
+                    )
+
+                    // Offline Bot Simulator
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Quickreply, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Offline Command Simulator", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                "Type or tap a command to test the on-device interpreter live:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            ListItem(
-                                headlineContent = { Text("Standard Contacts") },
-                                supportingContent = { Text("Will receive auto-replies") },
-                                leadingContent = { Icon(Icons.Rounded.Contacts, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) }
-                            )
-                            ListItem(
-                                headlineContent = { Text("Muted / Blocked") },
-                                supportingContent = { Text("Will NEVER receive auto-replies (silent rejection)") },
-                                leadingContent = { Icon(Icons.Rounded.Block, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-                            )
+
+                            // Quick test chips
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("#status", "#urgent", "#ping", "#help").forEach { chipCmd ->
+                                    SuggestionChip(
+                                        onClick = {
+                                            testBotInput = chipCmd
+                                            val repo = (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
+                                            testBotResult = com.example.shield.WhatsAppBotInterpreter.interpretMessage(
+                                                context, "Simulator", chipCmd, repo
+                                            )
+                                        },
+                                        label = { Text(chipCmd) }
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = testBotInput,
+                                    onValueChange = { testBotInput = it },
+                                    label = { Text("Command to test") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (testBotInput.isNotBlank()) {
+                                            val repo = (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
+                                            testBotResult = com.example.shield.WhatsAppBotInterpreter.interpretMessage(
+                                                context, "Simulator", testBotInput, repo
+                                            )
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Test")
+                                }
+                            }
+
+                            testBotResult?.let { res ->
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Detected: ${res.commandType}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                            if (res.triggeredEmergencyAlert) {
+                                                Surface(
+                                                    color = MaterialTheme.colorScheme.errorContainer,
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Text(
+                                                        "ALARM TRIGGERED",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(res.replyText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        
-        // Custom Reply Message
+
+        // 2. Customized Reply Messages by Recipient Tier
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            AnimatedVisibility(
+                visible = settingsState.autoRespondMissedCall || settingsState.autoRespondSms || settingsState.autoRespondWhatsapp,
+                enter = expandVertically(),
+                exit = shrinkVertically()
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Text(
-                        "Auto-Reply Message",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "This message will be sent to callers or texters when your shield is active or you miss their call.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    OutlinedTextField(
-                        value = settingsState.busyReplyMessage,
-                        onValueChange = { settingsViewModel.updateBusyReplyMessage(it) },
-                        label = { Text("Your custom reply message") },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text(
+                                "Auto-Reply Messages by Recipient",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                "Pause sends different messages depending on who is contacting you:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            // VIPs
+                            OutlinedTextField(
+                                value = settingsState.vipReplyMsg,
+                                onValueChange = { settingsViewModel.updateVipReplyMsg(it) },
+                                label = { Text("Inner Circle (VIP Contacts)") },
+                                supportingText = { Text("Sent only to numbers you marked as VIP in Pause") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                minLines = 2,
+                                maxLines = 4
+                            )
+
+                            // Standard Contacts
+                            OutlinedTextField(
+                                value = settingsState.standardReplyMsg,
+                                onValueChange = { 
+                                    settingsViewModel.updateStandardReplyMsg(it)
+                                    settingsViewModel.updateBusyReplyMessage(it)
+                                },
+                                label = { Text("Saved Contacts (Address Book)") },
+                                supportingText = { Text("Sent to any known number saved in your phone") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                minLines = 2,
+                                maxLines = 4
+                            )
+
+                            // Unknown Strangers
+                            OutlinedTextField(
+                                value = settingsState.unknownReplyMsg,
+                                onValueChange = { settingsViewModel.updateUnknownReplyMsg(it) },
+                                label = { Text("Unknown Numbers (Strangers / Unsaved)") },
+                                supportingText = { Text("Sent to callers who are not in your contacts") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                minLines = 2,
+                                maxLines = 4
+                            )
+                        }
+                    }
+
+                    // Loop & Cost Safety Guarantee
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(4.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Safety & Rate-Limiting Rules", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                "• Blocked or muted numbers will NEVER receive auto-replies.\n• Shortcodes (e.g. bank OTP alerts) are automatically ignored.\n• Rate limit: Max 3 auto-replies per phone number per hour to prevent infinite reply loops.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -497,33 +832,33 @@ fun ForwardingTab(viewModel: MainViewModel) {
         if (uri != null) {
             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val cursor = context.contentResolver.query(uri, null, null, null, null)
-                    if (cursor != null && cursor.moveToFirst()) {
-                        val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
-                        val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
-                        
-                        if (hasPhoneIndex >= 0 && idIndex >= 0) {
-                            val hasPhone = cursor.getInt(hasPhoneIndex)
-                            if (hasPhone > 0) {
-                                val id = cursor.getString(idIndex)
-                                val phones = context.contentResolver.query(
-                                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI, 
-                                    null, 
-                                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?", 
-                                    arrayOf(id), 
-                                    null
-                                )
-                                if (phones != null && phones.moveToFirst()) {
-                                    val numIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                                    if (numIndex >= 0) {
-                                        val number = phones.getString(numIndex)
-                                        settingsViewModel.updateSmsForwardTarget(number ?: "")
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
+                            val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
+                            
+                            if (hasPhoneIndex >= 0 && idIndex >= 0) {
+                                val hasPhone = cursor.getInt(hasPhoneIndex)
+                                if (hasPhone > 0) {
+                                    val id = cursor.getString(idIndex)
+                                    context.contentResolver.query(
+                                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI, 
+                                        null, 
+                                        ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?", 
+                                        arrayOf(id), 
+                                        null
+                                    )?.use { phones ->
+                                        if (phones.moveToFirst()) {
+                                            val numIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                                            if (numIndex >= 0) {
+                                                val number = phones.getString(numIndex)
+                                                settingsViewModel.updateSmsForwardTarget(number ?: "")
+                                            }
+                                        }
                                     }
-                                    phones.close()
                                 }
                             }
                         }
-                        cursor.close()
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -688,7 +1023,7 @@ fun ForwardingTab(viewModel: MainViewModel) {
                     
                     BenefitRow(
                         icon = Icons.Rounded.Event,
-                        title = "Calendar Sync (Ghost Mode)",
+                        title = "Calendar Sync (Silent Guard)",
                         description = "Automatically block all non-VIP calls when you have a busy event on your calendar."
                     )
                     Spacer(modifier = Modifier.height(16.dp))

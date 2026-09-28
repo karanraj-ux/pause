@@ -2,8 +2,10 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
@@ -19,12 +21,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -44,15 +49,10 @@ fun AddScheduleScreen(
     var showTimePicker by remember { mutableStateOf(false) }
     
     var showSmsPicker by remember { mutableStateOf(false) }
-    var showLinkDialogType by remember { mutableStateOf<String?>(null) }
-    var linkUrlInput by remember { mutableStateOf("") }
-    var linkLabelInput by remember { mutableStateOf("") }
     
     var repeatOption by remember { mutableStateOf("None") }
     var expandedRepeat by remember { mutableStateOf(false) }
     val repeatOptions = listOf("None", "Daily", "Weekly")
-
-
 
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     val timePickerState = rememberTimePickerState()
@@ -69,16 +69,30 @@ fun AddScheduleScreen(
     }
 
     val contactPicker = contactPickerLauncher { number -> target = number }
+    
+    fun buildFinalMessage(): String? {
+        if (type == "Call") return null
+        val fullMsg = message.trim()
+        return if (fullMsg.isNotEmpty()) fullMsg else null
+    }
+
     val sendSmsPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
-            if ((type == "Ghost Mode" || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null) {
+            if ((type == "Silent Guard" || type == "Ghost Mode" || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null) {
                 val cal = Calendar.getInstance().apply {
                     timeInMillis = selectedDateMillis!!
                     set(Calendar.HOUR_OF_DAY, selectedHour!!)
                     set(Calendar.MINUTE, selectedMinute!!)
                     set(Calendar.SECOND, 0)
                 }
-                onSave(type, target, if (type != "Call") message else null, cal.timeInMillis, repeatOption != "None", if(repeatOption == "Daily") 86400000L else if(repeatOption == "Weekly") 604800000L else 0L)
+                onSave(
+                    if (type == "Silent Guard") "Silent Guard" else type,
+                    target,
+                    buildFinalMessage(),
+                    cal.timeInMillis,
+                    repeatOption != "None",
+                    if(repeatOption == "Daily") 86400000L else if(repeatOption == "Weekly") 604800000L else 0L
+                )
             }
         }
     }
@@ -104,8 +118,8 @@ fun AddScheduleScreen(
                     color = Color.Transparent
                 ) {
                     FilledTonalButton(
-                                                onClick = {
-                            if ((type == "Ghost Mode" || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null) {
+                        onClick = {
+                            if ((type == "Silent Guard" || type == "Ghost Mode" || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null) {
                                 val cal = Calendar.getInstance().apply {
                                     timeInMillis = selectedDateMillis!!
                                     set(Calendar.HOUR_OF_DAY, selectedHour!!)
@@ -113,19 +127,22 @@ fun AddScheduleScreen(
                                     set(Calendar.SECOND, 0)
                                 }
                                 
+                                val finalMsg = buildFinalMessage()
+                                val saveType = if (type == "Silent Guard") "Silent Guard" else type
+                                
                                 if (type == "SMS") {
                                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
                                         sendSmsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
                                     } else {
-                                        onSave(type, target, message, cal.timeInMillis, repeatOption != "None", if(repeatOption == "Daily") 86400000L else if(repeatOption == "Weekly") 604800000L else 0L)
+                                        onSave(saveType, target, finalMsg, cal.timeInMillis, repeatOption != "None", if(repeatOption == "Daily") 86400000L else if(repeatOption == "Weekly") 604800000L else 0L)
                                     }
                                 } else {
-                                    onSave(type, target, if (type != "Call") message else null, cal.timeInMillis, repeatOption != "None", if(repeatOption == "Daily") 86400000L else if(repeatOption == "Weekly") 604800000L else 0L)
+                                    onSave(saveType, target, finalMsg, cal.timeInMillis, repeatOption != "None", if(repeatOption == "Daily") 86400000L else if(repeatOption == "Weekly") 604800000L else 0L)
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                        enabled = (type == "Ghost Mode" || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null
+                        enabled = (type == "Silent Guard" || type == "Ghost Mode" || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null
                     ) {
                         Text("Schedule Task", style = MaterialTheme.typography.titleMedium)
                     }
@@ -174,15 +191,15 @@ fun AddScheduleScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     FilterChip(
-                        selected = type == "Ghost Mode",
-                        onClick = { type = "Ghost Mode" },
-                        label = { Text("Ghost Mode") },
-                        leadingIcon = { if (type == "Ghost Mode") Icon(Icons.Default.Lock, null) },
+                        selected = type == "Silent Guard" || type == "Ghost Mode",
+                        onClick = { type = "Silent Guard" },
+                        label = { Text("Silent Guard") },
+                        leadingIcon = { if (type == "Silent Guard" || type == "Ghost Mode") Icon(Icons.Default.Lock, null) },
                         modifier = Modifier.weight(1f)
                     )
                 }
                 
-                if (type != "Ghost Mode") {
+                if (type != "Silent Guard" && type != "Ghost Mode") {
                     Text("Recipient Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 
                 Row(
@@ -233,37 +250,12 @@ fun AddScheduleScreen(
                     OutlinedTextField(
                         value = message,
                         onValueChange = { message = it },
-                        label = { Text(if (type == "WhatsApp") "WhatsApp Message" else "SMS Message") },
+                        label = { Text(if (type == "WhatsApp") "WhatsApp Message Caption" else "SMS Message") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         minLines = 3,
                         maxLines = 5
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = false,
-                            onClick = {
-                                showLinkDialogType = "Image"
-                                linkUrlInput = ""
-                                linkLabelInput = "Photo"
-                            },
-                            label = { Text("Attach Image Link", style = MaterialTheme.typography.labelSmall) },
-                            leadingIcon = { Icon(Icons.Default.Image, null, modifier = Modifier.size(16.dp)) }
-                        )
-                        FilterChip(
-                            selected = false,
-                            onClick = {
-                                showLinkDialogType = "File"
-                                linkUrlInput = ""
-                                linkLabelInput = "Document"
-                            },
-                            label = { Text("Attach Drive/File", style = MaterialTheme.typography.labelSmall) },
-                            leadingIcon = { Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(16.dp)) }
-                        )
-                    }
                 }
                 
                 }
@@ -360,68 +352,6 @@ fun AddScheduleScreen(
             onMessageSelected = { msg ->
                 message = msg
                 showSmsPicker = false
-            }
-        )
-    }
-
-    if (showLinkDialogType != null) {
-        AlertDialog(
-            onDismissRequest = { showLinkDialogType = null },
-            icon = {
-                Icon(
-                    if (showLinkDialogType == "Image") Icons.Default.Image else Icons.Default.AttachFile,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            title = { Text("Attach ${showLinkDialogType} Link") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "Paste a viewable web URL (e.g. Google Drive, Dropbox, public image URL, or document link) to include in your scheduled SMS.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedTextField(
-                        value = linkUrlInput,
-                        onValueChange = { linkUrlInput = it },
-                        label = { Text("URL / Web Link") },
-                        placeholder = { Text("https://...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = linkLabelInput,
-                        onValueChange = { linkLabelInput = it },
-                        label = { Text("Label (Optional)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val trimmedUrl = linkUrlInput.trim()
-                        if (trimmedUrl.isNotEmpty()) {
-                            val validUrl = if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) "https://$trimmedUrl" else trimmedUrl
-                            val tag = if (linkLabelInput.isNotBlank()) linkLabelInput.trim() else showLinkDialogType
-                            val linkStr = "\n[$tag: $validUrl]"
-                            message = (message + linkStr).trimStart()
-                        }
-                        showLinkDialogType = null
-                    },
-                    enabled = linkUrlInput.isNotBlank()
-                ) {
-                    Text("Attach Link")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLinkDialogType = null }) {
-                    Text("Cancel")
-                }
             }
         )
     }

@@ -103,42 +103,41 @@ fun PhoneRulesUI(ruleViewModel: PhoneRuleViewModel) {
             if (uri != null) {
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
-                        val cursor = context.contentResolver.query(
+                        context.contentResolver.query(
                             uri,
                             arrayOf(ContactsContract.Contacts.HAS_PHONE_NUMBER, ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME),
                             null,
                             null,
                             null
-                        )
-                        if (cursor != null && cursor.moveToFirst()) {
-                            val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
-                            val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
-                            val nameIndex = cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
-                            
-                            val hasPhone = if (hasPhoneIndex >= 0) cursor.getString(hasPhoneIndex) else "0"
-                            val id = if (idIndex >= 0) cursor.getString(idIndex) else ""
-                            val cName = if (nameIndex >= 0) cursor.getString(nameIndex) else ""
-                            
-                            cursor.close()
-                            
-                            if (hasPhone == "1" && id.isNotEmpty()) {
-                                val phones = context.contentResolver.query(
-                                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                                    null,
-                                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
-                                    arrayOf(id),
-                                    null
-                                )
-                                if (phones != null && phones.moveToFirst()) {
-                                    val numberIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                                    if (numberIndex >= 0) {
-                                        val number = phones.getString(numberIndex)
-                                        withContext(Dispatchers.Main) {
-                                            phoneNumber = number ?: ""
-                                            contactName = cName ?: ""
+                        )?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
+                                val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
+                                val nameIndex = cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
+                                
+                                val hasPhone = if (hasPhoneIndex >= 0) cursor.getString(hasPhoneIndex) else "0"
+                                val id = if (idIndex >= 0) cursor.getString(idIndex) else ""
+                                val cName = if (nameIndex >= 0) cursor.getString(nameIndex) else ""
+                                
+                                if (hasPhone == "1" && id.isNotEmpty()) {
+                                    context.contentResolver.query(
+                                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                                        null,
+                                        ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
+                                        arrayOf(id),
+                                        null
+                                    )?.use { phones ->
+                                        if (phones.moveToFirst()) {
+                                            val numberIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                                            if (numberIndex >= 0) {
+                                                val number = phones.getString(numberIndex)
+                                                withContext(Dispatchers.Main) {
+                                                    phoneNumber = number ?: ""
+                                                    contactName = cName ?: ""
+                                                }
+                                            }
                                         }
                                     }
-                                    phones.close()
                                 }
                             }
                         }

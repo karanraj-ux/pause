@@ -10,7 +10,8 @@ object AutoResponder {
         (context.applicationContext as com.example.ShieldApplication).applicationScope.launch(Dispatchers.IO) {
             try {
             val settingsRepo = (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
-            val autoRespondMissedCall = settingsRepo.getBooleanSync(com.example.data.repository.SettingsRepository.AUTO_RESPOND_MISSED_CALL, false)
+            val masterAutoReply = settingsRepo.getBooleanSync(com.example.data.repository.SettingsRepository.AUTO_REPLY_ENABLED, false)
+            val autoRespondMissedCall = settingsRepo.getBooleanSync(com.example.data.repository.SettingsRepository.AUTO_RESPOND_MISSED_CALL, false) || masterAutoReply
             
             if (autoRespondMissedCall && phoneNumber.isNotBlank() && isSafeToReply(context, phoneNumber)) {
                 val replyMessage = generateReply(context, "MISSED_CALL", phoneNumber)
@@ -80,11 +81,36 @@ object AutoResponder {
         val settingsRepo = (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
         val tier = com.example.calls.CallHandlingManager.getRelationshipTier(context, phoneNumber)
         
-        return when (tier) {
+        val rawTemplate = when (tier) {
             "Inner Circle" -> settingsRepo.getStringSync(com.example.data.repository.SettingsRepository.VIP_REPLY_MSG, "Hey, my phone is on silent. If this is an emergency (or if you are helping me find my phone), reply with the exact word URGENT and it will sound an alarm.")
             "Standard" -> settingsRepo.getStringSync(com.example.data.repository.SettingsRepository.STANDARD_REPLY_MSG, "Hi, I am currently focused or away. I will get back to you as soon as I can.")
             else -> settingsRepo.getStringSync(com.example.data.repository.SettingsRepository.UNKNOWN_REPLY_MSG, "I do not accept direct calls from unknown numbers to prevent spam. If this is important, please message me.")
         }
+
+        var resolved = MessageDispatcherHelper.resolveDynamicPlaceholders(
+            context = context,
+            template = rawTemplate,
+            senderName = phoneNumber,
+            senderNumber = phoneNumber,
+            settingsRepo = settingsRepo
+        )
+
+        // Attach configured file (document, PDF, photo, catalog link)
+        val attachedFileName = settingsRepo.getStringSync(com.example.data.repository.SettingsRepository.AUTO_REPLY_ATTACHED_FILE_NAME, "")
+        val attachedFileUrl = settingsRepo.getStringSync(com.example.data.repository.SettingsRepository.AUTO_REPLY_ATTACHED_FILE_URL, "")
+        if (attachedFileUrl.isNotBlank()) {
+            val label = if (attachedFileName.isNotBlank()) "📎 Attached ($attachedFileName)" else "📎 Attached File"
+            resolved = "$resolved\n$label: $attachedFileUrl"
+        }
+
+        val attachLoc = settingsRepo.getBooleanSync(com.example.data.repository.SettingsRepository.AUTO_REPLY_ATTACH_LOCATION, false)
+        val appendVipLoc = settingsRepo.getBooleanSync(com.example.data.repository.SettingsRepository.APPEND_LOCATION_TO_VIP, false)
+        if ((attachLoc || (tier == "Inner Circle" && appendVipLoc)) && !resolved.contains("maps.google.com")) {
+            val locLink = MessageDispatcherHelper.getLocationLink(context, settingsRepo)
+            resolved = "$resolved\n📍 Location: $locLink"
+        }
+
+        return resolved
     }
     private fun sendSms(context: Context, phoneNumber: String, content: String) {
         try {

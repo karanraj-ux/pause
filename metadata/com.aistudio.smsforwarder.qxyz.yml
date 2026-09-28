@@ -1,0 +1,24 @@
+Categories:
+  - Security
+  - System
+  - Phone & SMS
+License: MIT
+AuthorName: Pause Developers
+SourceCode: https://github.com/karanraj-ux/Goohle-studio-apk
+IssueTracker: https://github.com/karanraj-ux/Goohle-studio-apk/issues
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0
+CurrentVersionCode: 1
+
+RepoType: git
+Repo: https://github.com/karanraj-ux/Goohle-studio-apk.git
+
+Builds:
+  - versionName: 1.0
+    versionCode: 1
+    commit: v1.0
+    subdir: app
+    gradle:
+      - yes

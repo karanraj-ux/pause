@@ -6,6 +6,12 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import android.net.Uri
+import android.provider.Settings
+import android.os.PowerManager
 import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -116,59 +122,59 @@ fun DashboardScreen(
         if (uri != null) {
             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val cursor = context.contentResolver.query(uri, null, null, null, null)
-                    if (cursor != null && cursor.moveToFirst()) {
-                        val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
-                        val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
-                        val nameIndex = cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
-                        
-                        if (hasPhoneIndex >= 0 && idIndex >= 0) {
-                            val hasPhone = cursor.getInt(hasPhoneIndex)
-                            val name = if (nameIndex >= 0) cursor.getString(nameIndex) else "Unknown"
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val hasPhoneIndex = cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
+                            val idIndex = cursor.getColumnIndex(ContactsContract.Contacts._ID)
+                            val nameIndex = cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
                             
-                            if (hasPhone > 0) {
-                                val id = cursor.getString(idIndex)
-                                val phones = context.contentResolver.query(
-                                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI, 
-                                    null, 
-                                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?", 
-                                    arrayOf(id), 
-                                    null
-                                )
-                                if (phones != null && phones.moveToFirst()) {
-                                    val numIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                                    if (numIndex >= 0) {
-                                        val currentVips = settingsState.vipCallers
-                                        val numStr = phones.getString(numIndex)
-                                        val newVips = if (currentVips.isEmpty()) "$name ($numStr)" else "$currentVips,$name ($numStr)"
-                                        settingsViewModel.updateVipCallers(newVips)
-                                        
-                                        // Also set the STARRED status in the Android Contacts Database
-                                        try {
-                                            val values = android.content.ContentValues()
-                                            values.put(android.provider.ContactsContract.Contacts.STARRED, 1)
-                                            context.contentResolver.update(
-                                                android.provider.ContactsContract.Contacts.CONTENT_URI,
-                                                values,
-                                                android.provider.ContactsContract.Contacts._ID + " = ?",
-                                                arrayOf(id)
-                                            )
-                                            scope.launch { snackbarHostState.showSnackbar("VIP Saved & Starred to bypass DND!") }
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                            scope.launch { snackbarHostState.showSnackbar("Added VIP, but could not star contact.") }
+                            if (hasPhoneIndex >= 0 && idIndex >= 0) {
+                                val hasPhone = cursor.getInt(hasPhoneIndex)
+                                val name = if (nameIndex >= 0) cursor.getString(nameIndex) else "Unknown"
+                                
+                                if (hasPhone > 0) {
+                                    val id = cursor.getString(idIndex)
+                                    context.contentResolver.query(
+                                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI, 
+                                        null, 
+                                        ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?", 
+                                        arrayOf(id), 
+                                        null
+                                    )?.use { phones ->
+                                        if (phones.moveToFirst()) {
+                                            val numIndex = phones.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                                            if (numIndex >= 0) {
+                                                val currentVips = settingsState.vipCallers
+                                                val numStr = phones.getString(numIndex)
+                                                val newVips = if (currentVips.isEmpty()) "$name ($numStr)" else "$currentVips,$name ($numStr)"
+                                                settingsViewModel.updateVipCallers(newVips)
+                                                
+                                                // Also set the STARRED status in the Android Contacts Database
+                                                try {
+                                                    val values = android.content.ContentValues()
+                                                    values.put(android.provider.ContactsContract.Contacts.STARRED, 1)
+                                                    context.contentResolver.update(
+                                                        android.provider.ContactsContract.Contacts.CONTENT_URI,
+                                                        values,
+                                                        android.provider.ContactsContract.Contacts._ID + " = ?",
+                                                        arrayOf(id)
+                                                    )
+                                                    scope.launch { snackbarHostState.showSnackbar("VIP Saved & Starred to bypass DND!") }
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                    scope.launch { snackbarHostState.showSnackbar("Added VIP, but could not star contact.") }
+                                                }
+                                            }
                                         }
                                     }
-                                    phones.close()
+                                } else {
+                                    val currentVips = settingsState.vipCallers
+                                    val newVips = if (currentVips.isEmpty()) name else "$currentVips,$name"
+                                    settingsViewModel.updateVipCallers(newVips)
+                                    scope.launch { snackbarHostState.showSnackbar("Important Contact Saved Successfully!") }
                                 }
-                            } else {
-                                val currentVips = settingsState.vipCallers
-                                val newVips = if (currentVips.isEmpty()) name else "$currentVips,$name"
-                                settingsViewModel.updateVipCallers(newVips)
-                                scope.launch { snackbarHostState.showSnackbar("Important Contact Saved Successfully!") }
                             }
                         }
-                        cursor.close()
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -185,12 +191,35 @@ fun DashboardScreen(
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var isIgnoringBatteryOptimizations by remember { mutableStateOf(true) }
+    var isCallScreeningRoleHeld by remember { mutableStateOf(true) }
+    var hasTelephonyPermissions by remember { mutableStateOf(true) }
+    var showRestrictedSettingsGuide by remember { mutableStateOf(false) }
+
+    fun refreshDiagnostics() {
+        val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as? PowerManager
+        isIgnoringBatteryOptimizations = pm?.isIgnoringBatteryOptimizations(context.packageName) ?: true
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val rm = context.getSystemService(android.content.Context.ROLE_SERVICE) as? RoleManager
+            isCallScreeningRoleHeld = rm?.isRoleHeld(RoleManager.ROLE_CALL_SCREENING) == true
+        } else {
+            isCallScreeningRoleHeld = true
+        }
+
+        val hasSms = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        val hasCallLog = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
+        val hasContacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        hasTelephonyPermissions = hasSms && hasCallLog && hasContacts
+    }
+
+    val systemPermissionsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        refreshDiagnostics()
+    }
     
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
-                isIgnoringBatteryOptimizations = pm.isIgnoringBatteryOptimizations(context.packageName)
+                refreshDiagnostics()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -215,6 +244,48 @@ fun DashboardScreen(
             dismissButton = {
                 TextButton(onClick = { showContactPermissionRationale = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showRestrictedSettingsGuide) {
+        AlertDialog(
+            onDismissRequest = { showRestrictedSettingsGuide = false },
+            icon = { Icon(Icons.Rounded.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Android 13–16 Sideload Setup") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "On modern Android (13 to 16), sideloaded apps from outside Google Play have their Accessibility and Notification settings restricted by default.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "To allow Pause to screen calls & auto-reply:",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("1. Tap 'Open App Info' below.", style = MaterialTheme.typography.bodySmall)
+                    Text("2. In the top-right corner, tap the Three Dots (⋮) menu.", style = MaterialTheme.typography.bodySmall)
+                    Text("3. Tap 'Allow restricted settings' and confirm your PIN or fingerprint.", style = MaterialTheme.typography.bodySmall)
+                    Text("4. Return here to enjoy fully automated background protection.", style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showRestrictedSettingsGuide = false
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                }) {
+                    Text("Open App Info")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestrictedSettingsGuide = false }) {
+                    Text("Got It")
                 }
             }
         )
@@ -297,31 +368,150 @@ fun DashboardScreen(
             }
 
             
-            // Battery Optimization Banner
-            if (!isIgnoringBatteryOptimizations) {
-                item {
+            // System Readiness & Modern Android Diagnostics Hub
+            item {
+                if (isIgnoringBatteryOptimizations && isCallScreeningRoleHeld && hasTelephonyPermissions) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(4.dp, RoundedCornerShape(16.dp))
-                            .clickable {
-                                val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = android.net.Uri.parse("package:${context.packageName}")
-                                }
-                                context.startActivity(intent)
-                            },
+                            .shadow(2.dp, RoundedCornerShape(16.dp)),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Text("Battery Optimization", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                                Text("Shield needs to run in the background to reliably block calls, forward SMS, and execute scheduled tasks. Tap to allow.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("System Protection: Optimal", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text("Call Screener active • Background unrestricted • Android 16 ready", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { showRestrictedSettingsGuide = true }) {
+                                Icon(Icons.Rounded.HelpOutline, contentDescription = "Sideload Help", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(6.dp, RoundedCornerShape(20.dp)),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Action Required for Android 14–16", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                    Text("Modern Android requires explicit permissions to stop system kills and enable silent call screening.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f))
+                                }
+                            }
+                            
+                            HorizontalDivider(color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.2f))
+
+                            // 1. Call Screening Role
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !isCallScreeningRoleHeld) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Call Screening Role", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                        Text("Required to drop incoming spam before phone rings", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    FilledTonalButton(
+                                        onClick = {
+                                            val roleManager = context.getSystemService(android.content.Context.ROLE_SERVICE) as? RoleManager
+                                            val intent = roleManager?.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
+                                            if (intent != null) roleManagerLauncher.launch(intent)
+                                        },
+                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.onErrorContainer, contentColor = MaterialTheme.colorScheme.errorContainer)
+                                    ) {
+                                        Text("Set Role", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+
+                            // 2. Battery Optimization
+                            if (!isIgnoringBatteryOptimizations) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Unrestricted Battery", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                        Text("Prevents Android Doze from killing Silent Guard", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    FilledTonalButton(
+                                        onClick = {
+                                            val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                                data = android.net.Uri.parse("package:${context.packageName}")
+                                            }
+                                            context.startActivity(intent)
+                                        },
+                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.onErrorContainer, contentColor = MaterialTheme.colorScheme.errorContainer)
+                                    ) {
+                                        Text("Allow", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+
+                            // 3. Telephony & SMS
+                            if (!hasTelephonyPermissions) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Phone & SMS Access", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                                        Text("Needed for missed call detection & auto-reply", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    FilledTonalButton(
+                                        onClick = {
+                                            val perms = mutableListOf(
+                                                Manifest.permission.RECEIVE_SMS,
+                                                Manifest.permission.SEND_SMS,
+                                                Manifest.permission.READ_SMS,
+                                                Manifest.permission.READ_CALL_LOG,
+                                                Manifest.permission.READ_CONTACTS,
+                                                Manifest.permission.READ_PHONE_STATE
+                                            )
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) perms.add(Manifest.permission.ANSWER_PHONE_CALLS)
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+                                            systemPermissionsLauncher.launch(perms.toTypedArray())
+                                        },
+                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.onErrorContainer, contentColor = MaterialTheme.colorScheme.errorContainer)
+                                    ) {
+                                        Text("Grant", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+
+                            // Android 13-16 Sideload Helper link
+                            TextButton(
+                                onClick = { showRestrictedSettingsGuide = true },
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Icon(Icons.Rounded.HelpOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Sideloaded APK Setup Guide", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onErrorContainer)
                             }
                         }
                     }
@@ -350,13 +540,13 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Shield Active",
+                                    text = "Pause Active",
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    text = if (settingsState.ghostMode) "Ghost Mode Active. Silently deflecting non-VIPs." else "Ghost Mode Offline. Normal operation.",
+                                    text = if (settingsState.ghostMode) "Silent Guard Active. Silently deflecting non-VIPs." else "Silent Guard Inactive. Normal operation.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                 )
@@ -395,7 +585,7 @@ fun DashboardScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                if (settingsState.ghostMode) "Deactivate Lockdown" else "Total Lockdown", 
+                                if (settingsState.ghostMode) "Turn Off Silent Guard" else "Activate Silent Guard", 
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
@@ -657,86 +847,176 @@ fun DashboardScreen(
             
                         
                         // 2. Activity Overview / Reports
+            // 2. Activity Overview / Reports (Connected to Real Database Metrics)
             item {
-                if (windowSizeClass == WindowWidthSizeClass.Expanded) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        StatCard(
-                            title = "Calls Deflected", value = settingsState.spamBlockedCount.toString(), icon = Icons.Rounded.Shield,
-                            color = androidx.compose.ui.graphics.Color(0xFFFF7043), modifier = Modifier.weight(1f)
-                        )
-                        StatCard(
-                            title = "Focus Protected", value = "45m", icon = Icons.Rounded.Timer,
-                            color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f)
-                        )
-                        StatCard(
-                            title = "Tasks Today", value = mainUiState.tasksToday.toString(), icon = Icons.Rounded.Schedule,
-                            color = MaterialTheme.colorScheme.secondary, modifier = Modifier.weight(1f)
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        StatCard(
-                            title = "Calls Deflected", value = settingsState.spamBlockedCount.toString(), icon = Icons.Rounded.Shield,
-                            color = androidx.compose.ui.graphics.Color(0xFFFF7043), modifier = Modifier.weight(1f)
-                        )
-                        StatCard(
-                            title = "Focus Protected", value = "45m", icon = Icons.Rounded.Timer,
-                            color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f)
-                        )
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StatCard(
+                        title = "Calls Deflected",
+                        value = settingsState.spamBlockedCount.toString(),
+                        icon = Icons.Rounded.Shield,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                        onClick = { navController.navigate(Screen.Protect.route) }
+                    )
+                    StatCard(
+                        title = "Tasks Today",
+                        value = mainUiState.tasksToday.toString(),
+                        icon = Icons.Rounded.Schedule,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                        onClick = { navController.navigate(Screen.Schedule.route) }
+                    )
+                    StatCard(
+                        title = "Total Events",
+                        value = mainUiState.totalForwarded.toString(),
+                        icon = Icons.Rounded.ReceiptLong,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.weight(1f),
+                        onClick = { navController.navigate(Screen.Connect.route) }
+                    )
                 }
             }
 
-            // 3. Assistant Briefing Timeline (Static mock data for visual layout)
+            // 3. Real Interactive Telephony & Protection Timeline
             item {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Live Activity Stream",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (mainUiState.recentLogs.isNotEmpty()) {
+                        TextButton(onClick = { navController.navigate(Screen.Connect.route) }) {
+                            Text("View All", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Recent Shield Activity",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Timeline Item 1
-                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalAlignment = Alignment.Top) {
-                    Box(modifier = Modifier.size(12.dp).background(MaterialTheme.colorScheme.primary, CircleShape).align(Alignment.CenterVertically))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text("System Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        Text("Shield is running in the background and enforcing your rules. Check the 'Recent Calls' tab for detailed logs.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+
+                if (mainUiState.recentLogs.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        mainUiState.recentLogs.take(5).forEach { log ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    val isSpam = log.status.contains("SPAM", ignoreCase = true) || log.status.contains("BLOCKED", ignoreCase = true)
+                                    val isAutoReply = log.status.contains("REPLY", ignoreCase = true) || log.status.contains("AUTO", ignoreCase = true)
+                                    val nodeColor = if (isSpam) MaterialTheme.colorScheme.error else if (isAutoReply) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                                    val nodeIcon = if (isSpam) Icons.Rounded.Block else if (isAutoReply) Icons.Rounded.Quickreply else Icons.Rounded.Notifications
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .background(nodeColor.copy(alpha = 0.12f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(nodeIcon, contentDescription = null, tint = nodeColor, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = log.sender.ifBlank { "Unknown Caller" },
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            val timeFormatted = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(log.timestamp))
+                                            Text(
+                                                text = timeFormatted,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = log.message.ifBlank { log.status },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("No Recent Events", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text("Calls screened, auto-replies sent, and scheduled tasks will stream here live.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
             }
-            // Old logs and explanation card removed to save space for Assistant Timeline
         }
     }
 }
 
 
 @Composable
-fun StatCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color, modifier: Modifier = Modifier) {
+fun StatCard(
+    title: String, 
+    value: String, 
+    icon: androidx.compose.ui.graphics.vector.ImageVector, 
+    color: Color, 
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
     Card(
         modifier = modifier
             .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.05f))
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .semantics { contentDescription = "$title is $value" },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier.padding(14.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.Start
         ) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

@@ -2,8 +2,10 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,12 +25,18 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -40,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import coil.compose.AsyncImage
 import com.example.MainViewModel
 import com.example.shield.ScheduledTaskWorker
 import com.example.ui.viewmodels.ScheduleViewModel
@@ -68,10 +77,6 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
     var showTimePicker by remember { mutableStateOf(false) }
     var showSmsPicker by remember { mutableStateOf(false) }
 
-    var showLinkDialogType by remember { mutableStateOf<String?>(null) }
-    var linkUrlInput by remember { mutableStateOf("") }
-    var linkLabelInput by remember { mutableStateOf("") }
-
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     val timePickerState = rememberTimePickerState()
 
@@ -97,8 +102,122 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Text("Scheduled Tasks", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Plan SMS, Calls or WhatsApp reminders.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Automation Schedules", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Manage your sleep hours, calendar sync, and scheduled communications.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Unified Sleep Schedule Card
+                val settingsViewModel: com.example.ui.viewmodels.SettingsViewModel = viewModel(
+                    factory = com.example.ui.viewmodels.SettingsViewModel.Factory(
+                        (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
+                    )
+                )
+                val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Bedtime, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Sleep Schedule (Night Guard)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text("Silences unknown calls & auto-replies while resting", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            Switch(
+                                checked = settingsState.sleepModeEnabled,
+                                onCheckedChange = { isChecked ->
+                                    settingsViewModel.updateSleepModeEnabled(isChecked)
+                                    val wm = androidx.work.WorkManager.getInstance(context)
+                                    if (isChecked) {
+                                        val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.shield.SleepSyncWorker>(15, java.util.concurrent.TimeUnit.MINUTES).build()
+                                        wm.enqueueUniquePeriodicWork("SleepSync", androidx.work.ExistingPeriodicWorkPolicy.UPDATE, workRequest)
+                                    } else {
+                                        wm.cancelUniqueWork("SleepSync")
+                                    }
+                                }
+                            )
+                        }
+
+                        if (settingsState.sleepModeEnabled) {
+                            var showStartPicker by remember { mutableStateOf(false) }
+                            var showEndPicker by remember { mutableStateOf(false) }
+
+                            if (showStartPicker) {
+                                val timePickerState = rememberTimePickerState(initialHour = settingsState.sleepStartHour, initialMinute = settingsState.sleepStartMinute)
+                                TimePickerDialog(
+                                    onDismissRequest = { showStartPicker = false },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            settingsViewModel.updateSleepStart(timePickerState.hour, timePickerState.minute)
+                                            showStartPicker = false
+                                        }) { Text("OK") }
+                                    }
+                                ) {
+                                    TimePicker(state = timePickerState)
+                                }
+                            }
+
+                            if (showEndPicker) {
+                                val timePickerState = rememberTimePickerState(initialHour = settingsState.sleepEndHour, initialMinute = settingsState.sleepEndMinute)
+                                TimePickerDialog(
+                                    onDismissRequest = { showEndPicker = false },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            settingsViewModel.updateSleepEnd(timePickerState.hour, timePickerState.minute)
+                                            showEndPicker = false
+                                        }) { Text("OK") }
+                                    }
+                                ) {
+                                    TimePicker(state = timePickerState)
+                                }
+                            }
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                OutlinedButton(
+                                    onClick = { showStartPicker = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Bedtime, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(String.format("Bedtime: %02d:%02d", settingsState.sleepStartHour, settingsState.sleepStartMinute))
+                                }
+                                OutlinedButton(
+                                    onClick = { showEndPicker = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(String.format("Wake Up: %02d:%02d", settingsState.sleepEndHour, settingsState.sleepEndMinute))
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // Add Task Form embedded
@@ -140,64 +259,53 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedTextField(
-                                value = target,
-                                onValueChange = { target = it },
-                                label = { Text("Phone Number") },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                singleLine = true
+                            FilterChip(
+                                selected = type == "Silent Guard" || type == "Ghost Mode",
+                                onClick = { type = "Silent Guard" },
+                                label = { Text("Silent Guard") },
+                                leadingIcon = { if (type == "Silent Guard" || type == "Ghost Mode") Icon(Icons.Rounded.Shield, null) },
+                                modifier = Modifier.weight(1f)
                             )
-                            IconButton(
-                                onClick = { contactPicker() },
-                                modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                        }
+                        
+                        if (type != "Silent Guard" && type != "Ghost Mode") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Contacts, contentDescription = "Pick Contact", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                OutlinedTextField(
+                                    value = target,
+                                    onValueChange = { target = it },
+                                    label = { Text(if (type == "Call") "Phone to Call" else "Phone Number") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    singleLine = true
+                                )
+                                IconButton(
+                                    onClick = { contactPicker() },
+                                    modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                                ) {
+                                    Icon(Icons.Default.Contacts, contentDescription = "Pick Contact", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
                             }
                         }
                         
-                        if (type != "Call") {
+                        if (type != "Call" && type != "Silent Guard" && type != "Ghost Mode") {
                             OutlinedTextField(
                                 value = message,
                                 onValueChange = { message = it },
-                                label = { Text("Message") },
+                                label = { Text(if (type == "WhatsApp") "WhatsApp Message Caption" else "SMS Message") },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 minLines = 2,
                                 maxLines = 4
                             )
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                FilterChip(
-                                    selected = false,
-                                    onClick = {
-                                        showLinkDialogType = "Image"
-                                        linkUrlInput = ""
-                                        linkLabelInput = "Photo"
-                                    },
-                                    label = { Text("Image Link", style = MaterialTheme.typography.labelSmall) },
-                                    leadingIcon = { Icon(Icons.Default.Image, null, modifier = Modifier.size(16.dp)) }
-                                )
-                                FilterChip(
-                                    selected = false,
-                                    onClick = {
-                                        showLinkDialogType = "File"
-                                        linkUrlInput = ""
-                                        linkLabelInput = "Document"
-                                    },
-                                    label = { Text("Drive / File Link", style = MaterialTheme.typography.labelSmall) },
-                                    leadingIcon = { Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(16.dp)) }
-                                )
-                            }
                         }
                         
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -219,7 +327,8 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                         
                         FilledTonalButton(
                             onClick = {
-                                if (target.isNotBlank() && selectedDateMillis != null && selectedHour != null) {
+                                val isSilentGuardType = type == "Silent Guard" || type == "Ghost Mode"
+                                if ((isSilentGuardType || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null) {
                                     val cal = Calendar.getInstance().apply {
                                         timeInMillis = selectedDateMillis!!
                                         set(Calendar.HOUR_OF_DAY, selectedHour!!)
@@ -227,18 +336,18 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                                         set(Calendar.SECOND, 0)
                                     }
                                     val timeMillis = cal.timeInMillis
-                                    val msg = if (type != "Call") message else null
+                                    val fullMsg = if (type != "Call") message.trim().ifEmpty { null } else null
+                                    val saveType = if (isSilentGuardType) "Silent Guard" else type
+                                    val saveTarget = if (isSilentGuardType) "Silent Guard" else target
                                     
-                                    // Schedule task logic here
-                                    scheduleViewModel.addTask(type, target, msg, timeMillis) { id ->
-                                        // Schedule WorkManager task
+                                    scheduleViewModel.addTask(saveType, saveTarget, fullMsg, timeMillis) { id ->
                                         val delay = timeMillis - System.currentTimeMillis()
                                         if (delay > 0) {
                                             val data = Data.Builder()
                                                 .putInt("taskId", id.toInt())
-                                                .putString("type", type)
-                                                .putString("target", target)
-                                                .putString("message", msg)
+                                                .putString("type", saveType)
+                                                .putString("target", saveTarget)
+                                                .putString("message", fullMsg)
                                                 .build()
                                                 
                                             val request = OneTimeWorkRequestBuilder<ScheduledTaskWorker>()
@@ -256,7 +365,7 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            enabled = target.isNotBlank() && selectedDateMillis != null && selectedHour != null
+                            enabled = (type == "Silent Guard" || type == "Ghost Mode" || target.isNotBlank()) && selectedDateMillis != null && selectedHour != null
                         ) {
                             Text("Schedule", style = MaterialTheme.typography.titleSmall)
                         }
@@ -283,10 +392,11 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val isSilentGuard = task.type == "Ghost Mode" || task.type == "Silent Guard"
                         val icon = when (task.type) {
                             "SMS" -> Icons.Default.Message
                             "Call" -> Icons.Default.Call
-                            "Ghost Mode" -> Icons.Default.Lock
+                            "Ghost Mode", "Silent Guard" -> Icons.Rounded.Shield
                             else -> Icons.Default.ChatBubble
                         }
                         Box(
@@ -297,10 +407,33 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(task.target, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            if (task.type != "Call") {
-                                Text(task.message ?: "", style = MaterialTheme.typography.bodyMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                if (task.message?.contains("http://") == true || task.message?.contains("https://") == true) {
+                            Text(if (isSilentGuard) "Silent Guard Activated" else task.target, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            if (task.type != "Call" && !isSilentGuard) {
+                                val mediaUri = ScheduledTaskWorker.extractMediaUri(task.message)
+                                val cleanText = ScheduledTaskWorker.extractCleanText(task.message)
+                                if (cleanText.isNotBlank()) {
+                                    Text(cleanText, style = MaterialTheme.typography.bodyMedium, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (mediaUri != null) {
+                                    Row(
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        AsyncImage(
+                                            model = mediaUri,
+                                            contentDescription = "Attached photo",
+                                            modifier = Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            "Local Photo Attached",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                } else if (task.message?.contains("http://") == true || task.message?.contains("https://") == true) {
                                     Row(
                                         modifier = Modifier.padding(top = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -410,68 +543,6 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                 }) { Text("OK") }
             },
             dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } }
-        )
-    }
-
-    if (showLinkDialogType != null) {
-        AlertDialog(
-            onDismissRequest = { showLinkDialogType = null },
-            icon = {
-                Icon(
-                    if (showLinkDialogType == "Image") Icons.Default.Image else Icons.Default.AttachFile,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            title = { Text("Attach ${showLinkDialogType} Link") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "Paste a viewable web URL (e.g. Google Drive, Dropbox, public image URL, or document link) to include in your scheduled SMS.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedTextField(
-                        value = linkUrlInput,
-                        onValueChange = { linkUrlInput = it },
-                        label = { Text("URL / Web Link") },
-                        placeholder = { Text("https://...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    OutlinedTextField(
-                        value = linkLabelInput,
-                        onValueChange = { linkLabelInput = it },
-                        label = { Text("Label (Optional)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val trimmedUrl = linkUrlInput.trim()
-                        if (trimmedUrl.isNotEmpty()) {
-                            val validUrl = if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) "https://$trimmedUrl" else trimmedUrl
-                            val tag = if (linkLabelInput.isNotBlank()) linkLabelInput.trim() else showLinkDialogType
-                            val linkStr = "\n[$tag: $validUrl]"
-                            message = (message + linkStr).trimStart()
-                        }
-                        showLinkDialogType = null
-                    },
-                    enabled = linkUrlInput.isNotBlank()
-                ) {
-                    Text("Attach Link")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLinkDialogType = null }) {
-                    Text("Cancel")
-                }
-            }
         )
     }
 }

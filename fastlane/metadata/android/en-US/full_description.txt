@@ -1,0 +1,21 @@
+Pause is a sovereign, 100% offline call gatekeeper, DND VIP bypass, and automated focus responder for Android.
+
+When you are in deep work, meetings, driving, or sleeping, Pause defends your attention without cutting you off from the people who matter most.
+
+Key Capabilities:
+
+* WhatsApp & Phone Unknown Call Rejection: When Focus Mode (Silent Guard) is enabled, incoming voice and video calls from unknown or unsaved numbers are rejected automatically before your ringer disturbs your environment.
+
+* Starred & VIP Contact DND Bypass: Keep your phone in Do Not Disturb or Silent Mode with complete confidence. When a Starred contact or VIP calls on phone or WhatsApp, Pause temporarily overrides silent mode to ring out loudly for emergencies, then automatically restores your previous sound settings.
+
+* Smart Auto-Responder Over Internet & SMS: When someone messages you or calls while you are occupied, Pause dispatches your chosen custom reply—either over cellular SIM SMS or directly over the internet via WhatsApp quick-reply. Custom responses can be personalized for Starred VIPs, known contacts, and unknown callers.
+
+* Emergency Alert Keyword Override: If anyone texts emergency triggers (such as URGENT or EMERGENCY), Pause detects the keyword, triggers an audible alert, and lets you know immediately even if all rules are active.
+
+* Local Scheduled SMS: Schedule important reminders or work updates to be sent at specific dates and times straight from your carrier SIM without relying on external cloud scheduling servers.
+
+* Desktop Home Screen Widgets: Toggle Ghost Mode, trigger a 1-Hour temporary pause (perfect for expecting deliveries), or engage the Master Kill Switch with a single tap from your launcher.
+
+* Zero Telemetry & Hardware Encryption: Your rules, contacts, and logs never leave your phone. The internal SQLite database is protected with hardware-backed AES-256 SQLCipher encryption. No analytics, no advertising SDKs, and no tracking.
+
+* Complete Transparency & Open Source: Every permission requested is strictly used on-device for local automation. Pause is 100% open source under the MIT License.

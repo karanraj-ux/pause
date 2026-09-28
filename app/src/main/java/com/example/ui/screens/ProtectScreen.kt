@@ -181,7 +181,7 @@ fun ProtectScreen(viewModel: MainViewModel) {
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Ghost Mode",
+                                "Silent Guard",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -197,7 +197,7 @@ fun ProtectScreen(viewModel: MainViewModel) {
                                             Manifest.permission.ANSWER_PHONE_CALLS
                                         )
                                     )
-                                    scope.launch { snackbarHostState.showSnackbar("Shield Active") }
+                                    scope.launch { snackbarHostState.showSnackbar("Silent Guard Active") }
                                 } else {
                                     settingsViewModel.updateGhostMode(false)
                                 }
@@ -207,7 +207,7 @@ fun ProtectScreen(viewModel: MainViewModel) {
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "Ultimate Privacy: Instantly reject any caller not saved in your contacts. Perfect for personal/work separation.",
+                        "Ultimate Privacy: Instantly screens any caller not saved in your contacts before your phone rings. Perfect for deep focus and peace of mind.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 20.sp
@@ -218,7 +218,7 @@ fun ProtectScreen(viewModel: MainViewModel) {
                         androidx.compose.material3.OutlinedButton(
                             onClick = { 
                                 settingsViewModel.pauseGhostMode(60 * 60 * 1000L)
-                                scope.launch { snackbarHostState.showSnackbar("Ghost Mode paused for 1 hour") }
+                                scope.launch { snackbarHostState.showSnackbar("Silent Guard paused for 1 hour") }
                             },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(12.dp)

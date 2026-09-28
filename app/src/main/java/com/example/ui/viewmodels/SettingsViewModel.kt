@@ -21,6 +21,7 @@ data class SettingsState(
     val autoRespondMissedCall: Boolean = false,
     val autoReplyRestrictedNumbers: String = "",
     val autoRespondSms: Boolean = false,
+    val autoRespondWhatsapp: Boolean = false,
     val silentSwallow: Boolean = true,
     val masterKillSwitch: Boolean = false,
     val appTheme: String = "system",
@@ -65,7 +66,22 @@ data class SettingsState(
     val extractOtps: Boolean = false,
     val forwardServiceSmsOnly: Boolean = false,
     val spamBlockedCount: Int = 0,
-    val customSmsRules: String = ""
+    val customSmsRules: String = "",
+    val whatsappBotEnabled: Boolean = true,
+    val whatsappBotCustomKeywords: String = "",
+    val locationAutoShareEnabled: Boolean = false,
+    val savedLocationLink: String = "",
+    val savedLocationName: String = "",
+    val photoLinkUrl: String = "",
+    val photoLinkLabel: String = "Catalog / Media",
+    val quickLinks: String = "",
+    val appendLocationToVip: Boolean = false,
+    val appendLocationToEmergency: Boolean = true,
+    val autoReplyEnabled: Boolean = false,
+    val autoReplyAttachedFileName: String = "",
+    val autoReplyAttachedFileUrl: String = "",
+    val autoReplyAttachLocation: Boolean = false,
+    val autoReplyAttachedFileType: String = "DOCUMENT"
 )
 
 class SettingsViewModel(private val settingsRepository: SettingsRepository) : ViewModel() {
@@ -79,6 +95,8 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
                     it.copy(
                         spamBlockedCount = prefs[SettingsRepository.SPAM_BLOCKED_COUNT] ?: 0,
                         customSmsRules = prefs[SettingsRepository.CUSTOM_SMS_RULES] ?: "",
+                        whatsappBotEnabled = prefs[SettingsRepository.WHATSAPP_BOT_ENABLED] ?: true,
+                        whatsappBotCustomKeywords = prefs[SettingsRepository.WHATSAPP_BOT_CUSTOM_KEYWORDS] ?: "",
                         assistantName = prefs[SettingsRepository.ASSISTANT_NAME] ?: "Assistant",
                         assistantAvatar = prefs[SettingsRepository.ASSISTANT_AVATAR] ?: "",
                         targetNumbers = prefs[SettingsRepository.TARGET_NUMBERS] ?: "",
@@ -87,6 +105,7 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
                         autoRespondMissedCall = prefs[SettingsRepository.AUTO_RESPOND_MISSED_CALL] ?: false,
                         autoReplyRestrictedNumbers = prefs[SettingsRepository.AUTO_REPLY_RESTRICTED_NUMBERS] ?: "",
                         autoRespondSms = prefs[SettingsRepository.AUTO_RESPOND_SMS] ?: false,
+                        autoRespondWhatsapp = prefs[SettingsRepository.AUTO_RESPOND_WHATSAPP] ?: false,
                         silentSwallow = prefs[SettingsRepository.SILENT_SWALLOW] ?: true,
                         masterKillSwitch = prefs[SettingsRepository.MASTER_KILL_SWITCH] ?: false,
                         ghostModePauseEndTime = prefs[SettingsRepository.GHOST_MODE_PAUSE_END_TIME] ?: 0L,
@@ -129,11 +148,53 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
                         sleepStartMinute = prefs[SettingsRepository.SLEEP_START_MINUTE] ?: 0,
                         sleepEndHour = prefs[SettingsRepository.SLEEP_END_HOUR] ?: 7,
                         sleepEndMinute = prefs[SettingsRepository.SLEEP_END_MINUTE] ?: 0,
-                        forwardServiceSmsOnly = prefs[SettingsRepository.FORWARD_SERVICE_SMS_ONLY] ?: false
+                        forwardServiceSmsOnly = prefs[SettingsRepository.FORWARD_SERVICE_SMS_ONLY] ?: false,
+                        locationAutoShareEnabled = prefs[SettingsRepository.LOCATION_AUTO_SHARE_ENABLED] ?: false,
+                        savedLocationLink = prefs[SettingsRepository.SAVED_LOCATION_LINK] ?: "",
+                        savedLocationName = prefs[SettingsRepository.SAVED_LOCATION_NAME] ?: "",
+                        photoLinkUrl = prefs[SettingsRepository.PHOTO_LINK_URL] ?: "",
+                        photoLinkLabel = prefs[SettingsRepository.PHOTO_LINK_LABEL] ?: "Catalog / Media",
+                        quickLinks = prefs[SettingsRepository.QUICK_LINKS] ?: "",
+                        appendLocationToVip = prefs[SettingsRepository.APPEND_LOCATION_TO_VIP] ?: false,
+                        appendLocationToEmergency = prefs[SettingsRepository.APPEND_LOCATION_TO_EMERGENCY] ?: true,
+                        autoReplyEnabled = prefs[SettingsRepository.AUTO_REPLY_ENABLED] ?: false,
+                        autoReplyAttachedFileName = prefs[SettingsRepository.AUTO_REPLY_ATTACHED_FILE_NAME] ?: "",
+                        autoReplyAttachedFileUrl = prefs[SettingsRepository.AUTO_REPLY_ATTACHED_FILE_URL] ?: "",
+                        autoReplyAttachLocation = prefs[SettingsRepository.AUTO_REPLY_ATTACH_LOCATION] ?: false,
+                        autoReplyAttachedFileType = prefs[SettingsRepository.AUTO_REPLY_ATTACHED_FILE_TYPE] ?: "DOCUMENT"
                     )
                 }
             }
         }
+    }
+    
+    fun updateAutoReplyMaster(enabled: Boolean) {
+        _uiState.update { it.copy(autoReplyEnabled = enabled, autoRespondWhatsapp = enabled, autoRespondMissedCall = enabled) }
+        viewModelScope.launch {
+            settingsRepository.updateBoolean(SettingsRepository.AUTO_REPLY_ENABLED, enabled)
+            settingsRepository.updateBoolean(SettingsRepository.AUTO_RESPOND_WHATSAPP, enabled)
+            settingsRepository.updateBoolean(SettingsRepository.AUTO_RESPOND_MISSED_CALL, enabled)
+        }
+    }
+
+    fun updateAutoReplyAttachedFileName(value: String) {
+        _uiState.update { it.copy(autoReplyAttachedFileName = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.AUTO_REPLY_ATTACHED_FILE_NAME, value) }
+    }
+
+    fun updateAutoReplyAttachedFileUrl(value: String) {
+        _uiState.update { it.copy(autoReplyAttachedFileUrl = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.AUTO_REPLY_ATTACHED_FILE_URL, value) }
+    }
+
+    fun updateAutoReplyAttachLocation(value: Boolean) {
+        _uiState.update { it.copy(autoReplyAttachLocation = value) }
+        viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.AUTO_REPLY_ATTACH_LOCATION, value) }
+    }
+
+    fun updateAutoReplyAttachedFileType(value: String) {
+        _uiState.update { it.copy(autoReplyAttachedFileType = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.AUTO_REPLY_ATTACHED_FILE_TYPE, value) }
     }
     
     fun updateAssistantName(value: String) { _uiState.update { it.copy(assistantName = value) }; viewModelScope.launch { settingsRepository.updateString(SettingsRepository.ASSISTANT_NAME, value) } }
@@ -144,6 +205,7 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
     fun updateAutoRespondMissedCall(value: Boolean) { _uiState.update { it.copy(autoRespondMissedCall = value) }; viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.AUTO_RESPOND_MISSED_CALL, value) } }
     fun updateAutoReplyRestrictedNumbers(value: String) { _uiState.update { it.copy(autoReplyRestrictedNumbers = value) }; viewModelScope.launch { settingsRepository.updateString(SettingsRepository.AUTO_REPLY_RESTRICTED_NUMBERS, value) } }
     fun updateAutoRespondSms(value: Boolean) { _uiState.update { it.copy(autoRespondSms = value) }; viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.AUTO_RESPOND_SMS, value) } }
+    fun updateAutoRespondWhatsapp(value: Boolean) { _uiState.update { it.copy(autoRespondWhatsapp = value) }; viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.AUTO_RESPOND_WHATSAPP, value) } }
     fun updateSilentSwallow(value: Boolean) { _uiState.update { it.copy(silentSwallow = value) }; viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.SILENT_SWALLOW, value) } }
     fun updateMasterKillSwitch(value: Boolean) { _uiState.update { it.copy(masterKillSwitch = value) }; viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.MASTER_KILL_SWITCH, value) } }
     fun updateSenders(value: String) { _uiState.update { it.copy(senders = value) }; viewModelScope.launch { settingsRepository.updateString(SettingsRepository.SENDERS, value) } }
@@ -195,6 +257,56 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
             settingsRepository.updateString(SettingsRepository.CUSTOM_SMS_RULES, rules)
             _uiState.update { it.copy(customSmsRules = rules) }
         }
+    }
+
+    fun updateWhatsappBotEnabled(value: Boolean) {
+        _uiState.update { it.copy(whatsappBotEnabled = value) }
+        viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.WHATSAPP_BOT_ENABLED, value) }
+    }
+
+    fun updateWhatsappBotCustomKeywords(value: String) {
+        _uiState.update { it.copy(whatsappBotCustomKeywords = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.WHATSAPP_BOT_CUSTOM_KEYWORDS, value) }
+    }
+
+    fun updateLocationAutoShareEnabled(value: Boolean) {
+        _uiState.update { it.copy(locationAutoShareEnabled = value) }
+        viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.LOCATION_AUTO_SHARE_ENABLED, value) }
+    }
+
+    fun updateSavedLocationLink(value: String) {
+        _uiState.update { it.copy(savedLocationLink = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.SAVED_LOCATION_LINK, value) }
+    }
+
+    fun updateSavedLocationName(value: String) {
+        _uiState.update { it.copy(savedLocationName = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.SAVED_LOCATION_NAME, value) }
+    }
+
+    fun updatePhotoLinkUrl(value: String) {
+        _uiState.update { it.copy(photoLinkUrl = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.PHOTO_LINK_URL, value) }
+    }
+
+    fun updatePhotoLinkLabel(value: String) {
+        _uiState.update { it.copy(photoLinkLabel = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.PHOTO_LINK_LABEL, value) }
+    }
+
+    fun updateQuickLinks(value: String) {
+        _uiState.update { it.copy(quickLinks = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.QUICK_LINKS, value) }
+    }
+
+    fun updateAppendLocationToVip(value: Boolean) {
+        _uiState.update { it.copy(appendLocationToVip = value) }
+        viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.APPEND_LOCATION_TO_VIP, value) }
+    }
+
+    fun updateAppendLocationToEmergency(value: Boolean) {
+        _uiState.update { it.copy(appendLocationToEmergency = value) }
+        viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.APPEND_LOCATION_TO_EMERGENCY, value) }
     }
 
     class Factory(private val settingsRepository: SettingsRepository) : ViewModelProvider.Factory {

@@ -206,6 +206,54 @@ object CallHandlingManager {
         }
     }
 
+    fun bypassSilentForWhatsAppVip(context: Context, callerName: String) {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val currentMode = audioManager.ringerMode
+        try {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val canBypass = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M || notificationManager.isNotificationPolicyAccessGranted
+            
+            if (canBypass) {
+                if (currentMode != AudioManager.RINGER_MODE_NORMAL) {
+                    originalRingerMode = currentMode
+                    originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_RING)
+                    audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                }
+                val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
+                audioManager.setStreamVolume(AudioManager.STREAM_RING, maxVol, 0)
+                currentlyBypassedNumber = callerName
+                Log.d("CallHandlingManager", "WhatsApp Starred VIP DND Bypass activated for: $callerName")
+            }
+
+            // Play ringtone to alert user over silent/DND
+            val settingsRepo = (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
+            val customRingtoneUri = settingsRepo.getStringSync(com.example.data.repository.SettingsRepository.DND_BYPASS_RINGTONE_URI, "")
+            val alertUri = if (customRingtoneUri.isNotBlank()) {
+                android.net.Uri.parse(customRingtoneUri)
+            } else {
+                android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
+                    ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+            }
+            if (alertUri != null) {
+                val ringtone = android.media.RingtoneManager.getRingtone(context, alertUri)
+                ringtone?.play()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    kotlinx.coroutines.delay(25000)
+                    try {
+                        if (ringtone?.isPlaying == true) {
+                            ringtone.stop()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    restoreAudioState(context)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("CallHandlingManager", "Failed to bypass Silent Mode for WhatsApp VIP", e)
+        }
+    }
+
     fun restoreAudioState(context: Context) {
         if (currentlyBypassedNumber != null) {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager

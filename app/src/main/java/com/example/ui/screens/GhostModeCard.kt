@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -41,7 +42,7 @@ fun GhostModeCard(
         val phoneGranted = permissions[Manifest.permission.ANSWER_PHONE_CALLS] == true
         if (contactsGranted && phoneGranted) {
             settingsViewModel.updateGhostMode(true)
-            scope.launch { snackbarHostState.showSnackbar("Ghost Mode Active") }
+            scope.launch { snackbarHostState.showSnackbar("Silent Guard Active") }
         } else {
             settingsViewModel.updateGhostMode(false)
         }
@@ -76,15 +77,20 @@ fun GhostModeCard(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.Block, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Ghost Mode",
+                        "Silent Guard",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Silently filters unknown calls before ringing",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (timeLeft > 0) {
                         val minutes = (timeLeft / 1000) / 60

@@ -101,19 +101,19 @@ fun AssistantOnboardingScreen(onComplete: (String?) -> Unit) {
             ) {
                 Box(modifier = Modifier.weight(1f)) {
                     TabCard(
-                        title = "Smart DND",
-                        description = "Silence everyone except your VIPs.",
-                        icon = Icons.Default.Home,
-                        iconColor = MaterialTheme.colorScheme.primary,
+                        title = "Focus Shield",
+                        description = "Reject unknown WhatsApp & phone calls automatically.",
+                        icon = Icons.Default.Security,
+                        iconColor = MaterialTheme.colorScheme.error,
                         isCompact = true
                     )
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     TabCard(
-                        title = "Shield",
-                        description = "Block spam and unknown numbers.",
-                        icon = Icons.Default.Security,
-                        iconColor = MaterialTheme.colorScheme.error,
+                        title = "Starred Bypass",
+                        description = "Bypass DND & silent mode for chosen starred contacts.",
+                        icon = Icons.Default.Star,
+                        iconColor = MaterialTheme.colorScheme.primary,
                         isCompact = true
                     )
                 }
@@ -127,8 +127,8 @@ fun AssistantOnboardingScreen(onComplete: (String?) -> Unit) {
             ) {
                 Box(modifier = Modifier.weight(1f)) {
                     TabCard(
-                        title = "Connect",
-                        description = "Auto-reply to calls and texts.",
+                        title = "Auto-Reply",
+                        description = "Instant reply over internet for WhatsApp & SMS.",
                         icon = Icons.Default.ChatBubble,
                         iconColor = MaterialTheme.colorScheme.tertiary,
                         isCompact = true
@@ -136,8 +136,8 @@ fun AssistantOnboardingScreen(onComplete: (String?) -> Unit) {
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     TabCard(
-                        title = "Schedule",
-                        description = "Plan SMS and quiet hours.",
+                        title = "Schedule SMS",
+                        description = "Local on-device scheduled SMS without cloud servers.",
                         icon = Icons.Default.Schedule,
                         iconColor = MaterialTheme.colorScheme.secondary,
                         isCompact = true

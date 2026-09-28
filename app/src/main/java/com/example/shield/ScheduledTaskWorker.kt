@@ -42,7 +42,15 @@ class ScheduledTaskWorker(appContext: Context, workerParams: WorkerParameters) :
                     } else {
                         @Suppress("DEPRECATION") SmsManager.getDefault()
                     }
-                    val content = task.message ?: ""
+                    val settingsRepo = (applicationContext as ShieldApplication).container.settingsRepository
+                    val rawContent = task.message ?: ""
+                    val content = MessageDispatcherHelper.resolveDynamicPlaceholders(
+                        context = applicationContext,
+                        template = rawContent,
+                        senderName = task.target,
+                        senderNumber = task.target,
+                        settingsRepo = settingsRepo
+                    )
                     val parts = smsManager.divideMessage(content)
                     if (parts.size > 1) {
                         smsManager.sendMultipartTextMessage(task.target, null, parts, null, null)
@@ -58,19 +66,51 @@ class ScheduledTaskWorker(appContext: Context, workerParams: WorkerParameters) :
                     Log.d("ScheduledTaskWorker", "Posted call notification for ${task.target}")
                 }
 
-                "Ghost Mode" -> {
+                "Ghost Mode", "Silent Guard" -> {
                     val settingsRepo = (applicationContext as ShieldApplication).container.settingsRepository
                     settingsRepo.updateBoolean(com.example.data.repository.SettingsRepository.GHOST_MODE, true)
-                    Log.d("ScheduledTaskWorker", "Activated Ghost Mode via schedule")
-                    
-                    // If we want it to turn off automatically, we could schedule another task,
-                    // but for now, we just turn it on.
+                    Log.d("ScheduledTaskWorker", "Activated Silent Guard via schedule")
                 }
                 "WhatsApp" -> {
-                    val intent = Intent(Intent.ACTION_VIEW)
-                    intent.data = Uri.parse("https://wa.me/${task.target}?text=${Uri.encode(task.message ?: "")}")
-                    showTapToLaunchNotification(applicationContext, "Scheduled WhatsApp", "Tap to send message to ${task.target}", intent, taskId)
-                    Log.d("ScheduledTaskWorker", "Posted WhatsApp notification for ${task.target}")
+                    val rawMsg = task.message ?: ""
+                    val mediaUri = extractMediaUri(rawMsg)
+                    val settingsRepo = (applicationContext as ShieldApplication).container.settingsRepository
+                    val rawText = extractCleanText(rawMsg)
+                    val cleanText = MessageDispatcherHelper.resolveDynamicPlaceholders(
+                        context = applicationContext,
+                        template = rawText,
+                        senderName = task.target,
+                        senderNumber = task.target,
+                        settingsRepo = settingsRepo
+                    )
+                    val cleanNumber = task.target.replace(Regex("[^0-9]"), "")
+                    
+                    val intent = if (mediaUri != null) {
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "image/*"
+                            putExtra(Intent.EXTRA_STREAM, mediaUri)
+                            if (cleanNumber.isNotEmpty()) {
+                                putExtra("jid", "$cleanNumber@s.whatsapp.net")
+                            }
+                            if (cleanText.isNotEmpty()) {
+                                putExtra(Intent.EXTRA_TEXT, cleanText)
+                            }
+                            setPackage("com.whatsapp")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    } else {
+                        Intent(Intent.ACTION_VIEW).apply {
+                            data = Uri.parse("https://wa.me/$cleanNumber?text=${Uri.encode(cleanText)}")
+                        }
+                    }
+                    showTapToLaunchNotification(
+                        applicationContext,
+                        "Scheduled WhatsApp Message",
+                        if (mediaUri != null) "Tap to send image & message to ${task.target}" else "Tap to send message to ${task.target}",
+                        intent,
+                        taskId
+                    )
+                    Log.d("ScheduledTaskWorker", "Posted WhatsApp notification for ${task.target} (hasMedia=${mediaUri != null})")
                 }
             }
 
@@ -130,6 +170,20 @@ class ScheduledTaskWorker(appContext: Context, workerParams: WorkerParameters) :
 
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+        }
+    }
+
+    companion object {
+        fun extractMediaUri(message: String?): Uri? {
+            if (message.isNullOrBlank()) return null
+            val regex = Regex("""\[(?:Image|Media|File):\s*(content://[^\s\]]+)\]""")
+            val match = regex.find(message)
+            return match?.groupValues?.get(1)?.let { Uri.parse(it) }
+        }
+
+        fun extractCleanText(message: String?): String {
+            if (message.isNullOrBlank()) return ""
+            return message.replace(Regex("""\[(?:Image|Media|File):\s*content://[^\s\]]+\]"""), "").trim()
         }
     }
 }

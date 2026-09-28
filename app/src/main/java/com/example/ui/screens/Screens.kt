@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -41,8 +42,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.MainViewModel
 import com.example.SmsProcessor
 import com.example.ui.viewmodels.SettingsViewModel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -186,70 +185,6 @@ fun SettingsScreen() {
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             
-            ListItem(
-                headlineContent = { Text("Sleep Schedule") },
-                supportingContent = { Text("Automatically enable Ghost Mode during sleep hours") },
-                leadingContent = { Icon(Icons.Default.Bedtime, contentDescription = null) },
-                trailingContent = { 
-                    Switch(checked = uiState.sleepModeEnabled, onCheckedChange = { isChecked ->
-                        viewModel.updateSleepModeEnabled(isChecked)
-                        val wm = androidx.work.WorkManager.getInstance(context)
-                        if (isChecked) {
-                            val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.shield.SleepSyncWorker>(15, java.util.concurrent.TimeUnit.MINUTES).build()
-                            wm.enqueueUniquePeriodicWork("SleepSync", androidx.work.ExistingPeriodicWorkPolicy.UPDATE, workRequest)
-                        } else {
-                            wm.cancelUniqueWork("SleepSync")
-                        }
-                    })
-                }
-            )
-            
-            if (uiState.sleepModeEnabled) {
-                var showStartPicker by remember { mutableStateOf(false) }
-                var showEndPicker by remember { mutableStateOf(false) }
-                
-                if (showStartPicker) {
-                    val timePickerState = rememberTimePickerState(initialHour = uiState.sleepStartHour, initialMinute = uiState.sleepStartMinute)
-                    TimePickerDialog(
-                        onDismissRequest = { showStartPicker = false },
-                        confirmButton = {
-                            TextButton(onClick = { 
-                                viewModel.updateSleepStart(timePickerState.hour, timePickerState.minute)
-                                showStartPicker = false 
-                            }) { Text("OK") }
-                        }
-                    ) {
-                        TimePicker(state = timePickerState)
-                    }
-                }
-                
-                if (showEndPicker) {
-                    val timePickerState = rememberTimePickerState(initialHour = uiState.sleepEndHour, initialMinute = uiState.sleepEndMinute)
-                    TimePickerDialog(
-                        onDismissRequest = { showEndPicker = false },
-                        confirmButton = {
-                            TextButton(onClick = { 
-                                viewModel.updateSleepEnd(timePickerState.hour, timePickerState.minute)
-                                showEndPicker = false 
-                            }) { Text("OK") }
-                        }
-                    ) {
-                        TimePicker(state = timePickerState)
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    OutlinedButton(onClick = { showStartPicker = true }, modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(String.format("Bedtime: %02d:%02d", uiState.sleepStartHour, uiState.sleepStartMinute))
-                    }
-                    OutlinedButton(onClick = { showEndPicker = true }, modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text(String.format("Wake Up: %02d:%02d", uiState.sleepEndHour, uiState.sleepEndMinute))
-                    }
-                }
-            }
-            
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-            
             Text(
                 text = "Emergency Safety Nets",
                 style = MaterialTheme.typography.titleMedium,
@@ -258,27 +193,35 @@ fun SettingsScreen() {
             )
             
             ListItem(
-                headlineContent = { Text("Repeat Caller Bypass") },
-                supportingContent = { Text("Calls ring through if someone calls 3 times in 5 mins") },
-                leadingContent = { Icon(Icons.Default.Repeat, contentDescription = null) }
+                headlineContent = { Text("Repeat Caller DND Bypass") },
+                supportingContent = { Text("Optional: Allow persistent callers to ring loudly if they call 3 times in 5 mins") },
+                leadingContent = { Icon(Icons.Default.Repeat, contentDescription = null) },
+                trailingContent = {
+                    Switch(
+                        checked = uiState.overrideDnd,
+                        onCheckedChange = { isChecked ->
+                            viewModel.updateOverrideDnd(isChecked)
+                        }
+                    )
+                }
             )
             
             ListItem(
                 headlineContent = { Text("URGENT Keyword Alarm") },
-                supportingContent = { Text("SMS with the word 'URGENT' will sound a loud 15-second alarm") },
+                supportingContent = { Text("SMS or WhatsApp with 'URGENT' sounds a loud 15-second alarm") },
                 leadingContent = { Icon(Icons.Default.Warning, contentDescription = null) }
             )
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             Text(
-                text = "Advanced Integrations",
+                text = "Calendar Focus Sync",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             
             ListItem(
-                headlineContent = { Text("Calendar Integration") },
-                supportingContent = { Text("Sync meetings to automatically activate Ghost Mode") },
+                headlineContent = { Text("Local Busy Shield (Calendar Sync)") },
+                supportingContent = { Text("When you have a 'Busy' calendar event/meeting, Pause automatically enables Silent Guard to reject unknown calls and auto-reply until the meeting ends.") },
                 leadingContent = { Icon(Icons.Default.Event, contentDescription = null) },
                 trailingContent = { 
                     Switch(checked = uiState.calendarSync, onCheckedChange = { isChecked ->
@@ -305,68 +248,6 @@ fun SettingsScreen() {
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             
-            ListItem(
-                headlineContent = { Text("Sleep Schedule") },
-                supportingContent = { Text("Automatically enable Ghost Mode during sleep hours") },
-                leadingContent = { Icon(Icons.Default.Bedtime, contentDescription = null) },
-                trailingContent = { 
-                    Switch(checked = uiState.sleepModeEnabled, onCheckedChange = { isChecked ->
-                        viewModel.updateSleepModeEnabled(isChecked)
-                        val wm = androidx.work.WorkManager.getInstance(context)
-                        if (isChecked) {
-                            val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.shield.SleepSyncWorker>(15, java.util.concurrent.TimeUnit.MINUTES).build()
-                            wm.enqueueUniquePeriodicWork("SleepSync", androidx.work.ExistingPeriodicWorkPolicy.UPDATE, workRequest)
-                        } else {
-                            wm.cancelUniqueWork("SleepSync")
-                        }
-                    })
-                }
-            )
-            
-            if (uiState.sleepModeEnabled) {
-                var showStartPicker by remember { mutableStateOf(false) }
-                var showEndPicker by remember { mutableStateOf(false) }
-                
-                if (showStartPicker) {
-                    val timePickerState = rememberTimePickerState(initialHour = uiState.sleepStartHour, initialMinute = uiState.sleepStartMinute)
-                    TimePickerDialog(
-                        onDismissRequest = { showStartPicker = false },
-                        confirmButton = {
-                            TextButton(onClick = { 
-                                viewModel.updateSleepStart(timePickerState.hour, timePickerState.minute)
-                                showStartPicker = false 
-                            }) { Text("OK") }
-                        }
-                    ) {
-                        TimePicker(state = timePickerState)
-                    }
-                }
-                
-                if (showEndPicker) {
-                    val timePickerState = rememberTimePickerState(initialHour = uiState.sleepEndHour, initialMinute = uiState.sleepEndMinute)
-                    TimePickerDialog(
-                        onDismissRequest = { showEndPicker = false },
-                        confirmButton = {
-                            TextButton(onClick = { 
-                                viewModel.updateSleepEnd(timePickerState.hour, timePickerState.minute)
-                                showEndPicker = false 
-                            }) { Text("OK") }
-                        }
-                    ) {
-                        TimePicker(state = timePickerState)
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    OutlinedButton(onClick = { showStartPicker = true }, modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(String.format("Bedtime: %02d:%02d", uiState.sleepStartHour, uiState.sleepStartMinute))
-                    }
-                    OutlinedButton(onClick = { showEndPicker = true }, modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text(String.format("Wake Up: %02d:%02d", uiState.sleepEndHour, uiState.sleepEndMinute))
-                    }
-                }
-            }
-            
             Text(
                 text = "Privacy & Data Management",
                 style = MaterialTheme.typography.titleMedium,
@@ -374,10 +255,39 @@ fun SettingsScreen() {
             )
             
             Text(
-                text = "All logs and rules are kept strictly local on your device.",
+                text = "All logs, preferences, and rules are protected with hardware AES-256 SQLCipher encryption.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Network & Data Transparency Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Transparency: What Uses Internet vs. Offline?",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "• Call Filtering & Ghost Mode: 100% Offline (Local chip)\n" +
+                        "• Starred VIP DND Bypass: 100% Offline (Local notification policy)\n" +
+                        "• SMS Auto-Replies: Carrier SIM Only (No cloud server)\n" +
+                        "• WhatsApp Auto-Reply: Uses your phone's internet directly via WhatsApp notification quick-reply (Pause has no server)\n" +
+                        "• Database & Logs: 100% Local (Encrypted with Hardware Keystore)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             val scope = rememberCoroutineScope()
             var privacyMessage by remember { mutableStateOf("") }

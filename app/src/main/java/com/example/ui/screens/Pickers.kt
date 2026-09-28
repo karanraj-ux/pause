@@ -24,15 +24,15 @@ fun contactPickerLauncher(onNumberPicked: (String) -> Unit): () -> Unit {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
-                val cursor = context.contentResolver.query(
+                context.contentResolver.query(
                     uri,
                     arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
                     null, null, null
-                )
-                if (cursor != null && cursor.moveToFirst()) {
-                    val number = cursor.getString(0)
-                    onNumberPicked(number.replace(Regex("[^0-9+]"), ""))
-                    cursor.close()
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val number = cursor.getString(0)
+                        onNumberPicked(number.replace(Regex("[^0-9+]"), ""))
+                    }
                 }
             }
         }

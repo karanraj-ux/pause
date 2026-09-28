@@ -16,7 +16,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlinx.coroutines.flow.combine
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class MainUiState(
     val recentLogs: List<SmsLogEntity> = emptyList(),
     val subscriptions: List<SubscriptionEntity> = emptyList(),

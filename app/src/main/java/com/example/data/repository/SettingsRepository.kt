@@ -24,6 +24,7 @@ class SettingsRepository(private val context: Context) {
         val DND_BYPASS_ENABLED = booleanPreferencesKey("dnd_bypass_enabled")
         val DIVERT_ENABLED = booleanPreferencesKey("divert_enabled")
         val AUTO_RESPOND_SMS = booleanPreferencesKey("auto_respond_sms")
+        val AUTO_RESPOND_WHATSAPP = booleanPreferencesKey("auto_respond_whatsapp")
         val SILENT_SWALLOW = booleanPreferencesKey("silent_swallow")
         val MASTER_KILL_SWITCH = booleanPreferencesKey("master_kill_switch")
         val HAS_SEEN_WELCOME = booleanPreferencesKey("has_seen_welcome")
@@ -73,6 +74,26 @@ class SettingsRepository(private val context: Context) {
         val SPAM_BLOCKED_COUNT = intPreferencesKey("spam_blocked_count")
         val CUSTOM_SMS_RULES = stringPreferencesKey("custom_sms_rules")
         
+        // WhatsApp Offline Bot / Message Interpreter
+        val WHATSAPP_BOT_ENABLED = booleanPreferencesKey("whatsapp_bot_enabled")
+        val WHATSAPP_BOT_CUSTOM_KEYWORDS = stringPreferencesKey("whatsapp_bot_custom_keywords")
+        
+        // Auto-Reply Attached Files & Location
+        val AUTO_REPLY_ATTACHED_FILE_NAME = stringPreferencesKey("auto_reply_attached_file_name")
+        val AUTO_REPLY_ATTACHED_FILE_URL = stringPreferencesKey("auto_reply_attached_file_url")
+        val AUTO_REPLY_ATTACH_LOCATION = booleanPreferencesKey("auto_reply_attach_location")
+        val AUTO_REPLY_ATTACHED_FILE_TYPE = stringPreferencesKey("auto_reply_attached_file_type")
+        
+        // Location & Media Message Features
+        val LOCATION_AUTO_SHARE_ENABLED = booleanPreferencesKey("location_auto_share_enabled")
+        val SAVED_LOCATION_LINK = stringPreferencesKey("saved_location_link")
+        val SAVED_LOCATION_NAME = stringPreferencesKey("saved_location_name")
+        val PHOTO_LINK_URL = stringPreferencesKey("photo_link_url")
+        val PHOTO_LINK_LABEL = stringPreferencesKey("photo_link_label")
+        val QUICK_LINKS = stringPreferencesKey("quick_links")
+        val APPEND_LOCATION_TO_VIP = booleanPreferencesKey("append_location_to_vip")
+        val APPEND_LOCATION_TO_EMERGENCY = booleanPreferencesKey("append_location_to_emergency")
+        
         // Sleep Settings
         val SLEEP_MODE_ENABLED = booleanPreferencesKey("sleep_mode_enabled")
         val SLEEP_GHOST_MODE_ACTIVE = booleanPreferencesKey("sleep_ghost_mode_active")
@@ -92,6 +113,7 @@ class SettingsRepository(private val context: Context) {
     val autoRespondMissedCall: Flow<Boolean> = context.dataStore.data.map { it[AUTO_RESPOND_MISSED_CALL] ?: false }
     val autoReplyRestrictedNumbers: Flow<String> = context.dataStore.data.map { it[AUTO_REPLY_RESTRICTED_NUMBERS] ?: "" }
     val autoRespondSms: Flow<Boolean> = context.dataStore.data.map { it[AUTO_RESPOND_SMS] ?: false }
+    val autoRespondWhatsapp: Flow<Boolean> = context.dataStore.data.map { it[AUTO_RESPOND_WHATSAPP] ?: false }
     val silentSwallow: Flow<Boolean> = context.dataStore.data.map { it[SILENT_SWALLOW] ?: false }
     val masterKillSwitch: Flow<Boolean> = context.dataStore.data.map { it[MASTER_KILL_SWITCH] ?: false }
     val hasSeenWelcome: Flow<Boolean> = context.dataStore.data.map { it[HAS_SEEN_WELCOME] ?: false }
@@ -140,6 +162,20 @@ class SettingsRepository(private val context: Context) {
     val appTheme: Flow<String> = context.dataStore.data.map { it[APP_THEME] ?: "system" }
     val spamBlockedCount: Flow<Int> = context.dataStore.data.map { it[SPAM_BLOCKED_COUNT] ?: 0 }
     val customSmsRules: Flow<String> = context.dataStore.data.map { it[CUSTOM_SMS_RULES] ?: "" }
+    val whatsappBotEnabled: Flow<Boolean> = context.dataStore.data.map { it[WHATSAPP_BOT_ENABLED] ?: true }
+    val whatsappBotCustomKeywords: Flow<String> = context.dataStore.data.map { it[WHATSAPP_BOT_CUSTOM_KEYWORDS] ?: "" }
+    val autoReplyAttachedFileName: Flow<String> = context.dataStore.data.map { it[AUTO_REPLY_ATTACHED_FILE_NAME] ?: "" }
+    val autoReplyAttachedFileUrl: Flow<String> = context.dataStore.data.map { it[AUTO_REPLY_ATTACHED_FILE_URL] ?: "" }
+    val autoReplyAttachLocation: Flow<Boolean> = context.dataStore.data.map { it[AUTO_REPLY_ATTACH_LOCATION] ?: false }
+    val autoReplyAttachedFileType: Flow<String> = context.dataStore.data.map { it[AUTO_REPLY_ATTACHED_FILE_TYPE] ?: "DOCUMENT" }
+    val locationAutoShareEnabled: Flow<Boolean> = context.dataStore.data.map { it[LOCATION_AUTO_SHARE_ENABLED] ?: false }
+    val savedLocationLink: Flow<String> = context.dataStore.data.map { it[SAVED_LOCATION_LINK] ?: "" }
+    val savedLocationName: Flow<String> = context.dataStore.data.map { it[SAVED_LOCATION_NAME] ?: "" }
+    val photoLinkUrl: Flow<String> = context.dataStore.data.map { it[PHOTO_LINK_URL] ?: "" }
+    val photoLinkLabel: Flow<String> = context.dataStore.data.map { it[PHOTO_LINK_LABEL] ?: "Catalog / Media" }
+    val quickLinks: Flow<String> = context.dataStore.data.map { it[QUICK_LINKS] ?: "" }
+    val appendLocationToVip: Flow<Boolean> = context.dataStore.data.map { it[APPEND_LOCATION_TO_VIP] ?: false }
+    val appendLocationToEmergency: Flow<Boolean> = context.dataStore.data.map { it[APPEND_LOCATION_TO_EMERGENCY] ?: true }
     
     val sleepModeEnabled: Flow<Boolean> = context.dataStore.data.map { it[SLEEP_MODE_ENABLED] ?: false }
     val sleepGhostModeActive: Flow<Boolean> = context.dataStore.data.map { it[SLEEP_GHOST_MODE_ACTIVE] ?: false }
