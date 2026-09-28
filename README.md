@@ -3,9 +3,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zero Telemetry](https://img.shields.io/badge/Telemetry-Zero%20%2F%20None-brightgreen.svg)](#-privacy--security-model)
-[![100% Offline Core](https://img.shields.io/badge/Core-100%25%20On--Device-orange.svg)](#-architecture)
+[![100% Offline Core](https://img.shields.io/badge/Core-100%25%20On--Device-orange.svg)](#-privacy--security-model)
 [![Android Compatibility](https://img.shields.io/badge/Android-8.0%2B%20(API%2026%2B)-green.svg)](#)
-[![F-Droid Ready](https://img.shields.io/badge/F--Droid-Ready-blue.svg)](#-f-droid-compliance)
 
 ---
 
@@ -21,6 +20,17 @@ Modern communication apps and stock phone dialers present an all-or-nothing dile
 
 ---
 
+## 🎯 Real-Life Everyday Scenarios
+
+| Real-Life Scenario | What Normally Happens | How Pause Solves It |
+| :--- | :--- | :--- |
+| **Deep Work / Coding Sprint** | Phone is on silent, but you're constantly glancing at the screen worrying about an urgent family call. | **Ghost Mode + Starred DND Bypass**: All spam and unsaved callers are instantly rejected with zero screen distraction, but a call from a **Starred family contact** punches through silent mode and rings immediately. |
+| **Driving / In a Meeting** | Client or colleague calls three times in a row, thinking you're intentionally ignoring them. | **Instant Multi-Tier Auto-Responder**: Pause immediately replies via SMS or WhatsApp with your custom message: *"In a meeting until 3 PM. If urgent, reply #emergency to alert me."* |
+| **Secondary Phone / Work Device** | You leave your work phone at your desk or home while heading out, missing urgent client texts or bank OTPs. | **Smart Multi-Channel Forwarder**: Automatically mirrors critical SMS or missed call alerts to your Telegram bot, Discord webhook, or secondary phone number securely. |
+| **Sound Sleep at Night** | Muted phone prevents you from hearing a critical 3 AM emergency from a loved one or on-call teammate. | **Guardian Protocol & Emergency Siren**: If a VIP repeats a call or texts `URGENT`, Pause sounds an audible bypass alarm tone so you wake up when it truly counts. |
+
+---
+
 ## ⚡ Core Capabilities
 
 ### 🛡️ 1. Focus Mode & Unknown Call Rejection
@@ -33,17 +43,18 @@ Modern communication apps and stock phone dialers present an all-or-nothing dile
 * **Ringer Override for Starred Contacts**: When a contact marked as **Starred** in your Android contacts (or listed in your VIP settings) calls via cellular or WhatsApp, Pause temporarily overrides silent mode, raises the alert ringer, and sounds the ringtone so the call breaks through.
 * **Auto-Restoration**: Once the call concludes, your original volume and ringer mode are immediately restored.
 
-### 💬 3. Instant Auto-Responder (SMS & WhatsApp Over Internet)
-* **Chosen Responses**: Send immediate, personalized responses when you are occupied:
+### 💬 3. Instant Auto-Responder & Forwarder (SMS, WhatsApp, Telegram, Discord)
+* **Chosen Tiered Responses**: Send immediate, personalized responses when you are occupied:
   * **Starred / VIP Contacts**: Warm notes informing them your phone is on silent, with emergency keyword overrides.
   * **Known Contacts**: Courteous status updates (e.g., *"In focus mode until 4 PM; will get back to you shortly"*).
   * **Unknown Senders**: Clear boundary notices filtering out unsolicited communication.
+* **Smart Forwarding to Telegram & Discord**: Forward incoming notifications, SMS, or missed-call alerts directly to your private Telegram Bot chat or Discord channel via secure HTTPS webhooks.
 * **WhatsApp Quick-Reply**: Replies to incoming WhatsApp messages directly over the internet via native notification actions without requiring third-party bot servers.
 * **Emergency Keyword Trigger**: If anyone texts emergency triggers (such as `URGENT` or `#emergency`), Pause triggers an audible alert tone on your device.
 
-### ⏰ 4. Local Scheduled SMS
-* Schedule important messages or follow-ups to be sent at specific dates, times, or recurring intervals.
-* Dispatches directly from your device's SIM card without routing through external cloud scheduling servers or third-party gateways.
+### ⏰ 4. Local Scheduled SMS & Sleep Sync
+* **Scheduled SMS Tasks**: Schedule important messages or follow-ups to be sent at specific dates, times, or recurring intervals. Dispatches directly from your device's SIM card without cloud dependencies.
+* **Sleep & Calendar Sync**: Automatically engages Ghost Mode and DND protections during your scheduled bedtime or active calendar events, then deactivates them when you wake up.
 
 ### 🎛️ 5. Quick Action Desktop Widgets
 * **Master Kill Switch**: Instantly disable all automation rules with a single tap.
@@ -77,47 +88,6 @@ To deliver reliable, autonomous on-device protection, Pause uses the following A
 
 ---
 
-## 📦 F-Droid Compliance & Packaging
-
-Pause is designed from the ground up to comply with F-Droid inclusion policies:
-
-1. **100% Free & Open Source**: Licensed under the OSI-approved [MIT License](LICENSE).
-2. **Zero Proprietary Blobs**: No non-free Google Play Services dependencies or binary tracking libraries.
-3. **Reproducible Builds**: Uses standard Gradle toolchains with standard Android SDK dependencies.
-4. **Fastlane Metadata**: Pre-configured in `fastlane/metadata/android/en-US/`:
-   * `title.txt`
-   * `short_description.txt`
-   * `full_description.txt`
-
-### F-Droid Metadata Recipe Sample (`metadata/com.aistudio.smsforwarder.qxyz.yml`)
-```yaml
-Categories:
-  - Security
-  - System
-  - Phone & SMS
-License: MIT
-SourceCode: https://github.com/karanraj-ux/Goohle-studio-apk
-IssueTracker: https://github.com/karanraj-ux/Goohle-studio-apk/issues
-
-AutoUpdateMode: Version
-UpdateCheckMode: Tags
-CurrentVersion: 1.0
-CurrentVersionCode: 1
-
-RepoType: git
-Repo: https://github.com/karanraj-ux/Goohle-studio-apk.git
-
-Builds:
-  - versionName: 1.0
-    versionCode: 1
-    commit: v1.0
-    subdir: app
-    gradle:
-      - yes
-```
-
----
-
 ## 🛠️ Building From Source
 
 ### Prerequisites
@@ -127,14 +97,10 @@ Builds:
 ### Build Commands
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/karanraj-ux/Goohle-studio-apk.git
-cd Goohle-studio-apk
-
-# 2. Run unit tests
+# Run unit tests
 gradle :app:testDebugUnitTest
 
-# 3. Build release APK
+# Build release APK
 gradle :app:assembleRelease
 ```
 
