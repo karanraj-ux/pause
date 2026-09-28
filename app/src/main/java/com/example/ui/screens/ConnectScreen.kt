@@ -95,8 +95,6 @@ fun AutoReplyTab(viewModel: MainViewModel) {
         )
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
-    var testBotInput by remember { mutableStateOf("") }
-    var testBotResult by remember { mutableStateOf<com.example.shield.BotInterpretationResult?>(null) }
 
     val hasSmsPerm = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == android.content.pm.PackageManager.PERMISSION_GRANTED
     val hasCallLogPerm = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -397,13 +395,13 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    "WhatsApp Focus Shield & Auto-Reply",
+                                    "Enable WhatsApp Auto-Reply",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    "Call Shield • Starred DND Bypass • Auto-Reply",
+                                    "Instant replies over the internet • 3 recipient tiers",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color(0xFF25D366),
                                     fontWeight = FontWeight.SemiBold
@@ -411,9 +409,9 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                             }
                         }
                         Switch(
-                            checked = settingsState.whatsappBotEnabled,
+                            checked = settingsState.autoRespondWhatsapp,
                             onCheckedChange = { isChecked ->
-                                settingsViewModel.updateWhatsappBotEnabled(isChecked)
+                                settingsViewModel.updateAutoRespondWhatsapp(isChecked)
                             },
                             colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF25D366))
                         )
@@ -485,175 +483,6 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                         }
                     }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-
-                    Text(
-                        "Supported Offline Commands",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    val commands = listOf(
-                        Triple("#urgent", "Bypasses silent mode & sounds emergency alarm for 15s", MaterialTheme.colorScheme.error),
-                        Triple("#status", "Returns current Silent Guard state & deflected call count", MaterialTheme.colorScheme.primary),
-                        Triple("#callback", "Registers caller on high-priority callback queue", MaterialTheme.colorScheme.secondary),
-                        Triple("#dnd", "Checks active quiet hours and schedules", MaterialTheme.colorScheme.tertiary),
-                        Triple("#ping", "Verifies offline bot responsiveness instantly", MaterialTheme.colorScheme.primary)
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        commands.forEach { (cmd, desc, tint) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    color = tint.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = cmd,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = tint,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = desc,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-
-                    // Custom keyword mapping
-                    Text(
-                        "Custom Bot Keywords (Optional)",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    OutlinedTextField(
-                        value = settingsState.whatsappBotCustomKeywords,
-                        onValueChange = { settingsViewModel.updateWhatsappBotCustomKeywords(it) },
-                        label = { Text("e.g. office -> At office today.; lunch -> Back by 2 PM.") },
-                        placeholder = { Text("keyword -> reply message; keyword2 -> reply2") },
-                        supportingText = { Text("Separate multiple rules with semicolons (;)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        minLines = 1,
-                        maxLines = 3
-                    )
-
-                    // Offline Bot Simulator
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Quickreply, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Offline Command Simulator", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            }
-                            Text(
-                                "Type or tap a command to test the on-device interpreter live:",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            // Quick test chips
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf("#status", "#urgent", "#ping", "#help").forEach { chipCmd ->
-                                    SuggestionChip(
-                                        onClick = {
-                                            testBotInput = chipCmd
-                                            val repo = (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
-                                            testBotResult = com.example.shield.WhatsAppBotInterpreter.interpretMessage(
-                                                context, "Simulator", chipCmd, repo
-                                            )
-                                        },
-                                        label = { Text(chipCmd) }
-                                    )
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedTextField(
-                                    value = testBotInput,
-                                    onValueChange = { testBotInput = it },
-                                    label = { Text("Command to test") },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    singleLine = true
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        if (testBotInput.isNotBlank()) {
-                                            val repo = (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
-                                            testBotResult = com.example.shield.WhatsAppBotInterpreter.interpretMessage(
-                                                context, "Simulator", testBotInput, repo
-                                            )
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Test")
-                                }
-                            }
-
-                            testBotResult?.let { res ->
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surface,
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                ) {
-                                    Column(modifier = Modifier.padding(12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text("Detected: ${res.commandType}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                            if (res.triggeredEmergencyAlert) {
-                                                Surface(
-                                                    color = MaterialTheme.colorScheme.errorContainer,
-                                                    shape = RoundedCornerShape(6.dp)
-                                                ) {
-                                                    Text(
-                                                        "ALARM TRIGGERED",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Text(res.replyText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }

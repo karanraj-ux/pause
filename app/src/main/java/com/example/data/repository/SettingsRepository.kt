@@ -74,9 +74,9 @@ class SettingsRepository(private val context: Context) {
         val SPAM_BLOCKED_COUNT = intPreferencesKey("spam_blocked_count")
         val CUSTOM_SMS_RULES = stringPreferencesKey("custom_sms_rules")
         
-        // WhatsApp Offline Bot / Message Interpreter
-        val WHATSAPP_BOT_ENABLED = booleanPreferencesKey("whatsapp_bot_enabled")
-        val WHATSAPP_BOT_CUSTOM_KEYWORDS = stringPreferencesKey("whatsapp_bot_custom_keywords")
+        // Calendar Focus Sync rules (Schedule & Focus)
+        val CALENDAR_SYNC_IDS = stringSetPreferencesKey("calendar_sync_ids")
+        val CALENDAR_TRIGGER_KEYWORDS = stringPreferencesKey("calendar_trigger_keywords")
         
         // Auto-Reply Attached Files & Location
         val AUTO_REPLY_ATTACHED_FILE_NAME = stringPreferencesKey("auto_reply_attached_file_name")
@@ -150,6 +150,8 @@ class SettingsRepository(private val context: Context) {
     val blockSpamCalls: Flow<Boolean> = context.dataStore.data.map { it[BLOCK_SPAM_CALLS] ?: false }
     val calendarSync: Flow<Boolean> = context.dataStore.data.map { it[CALENDAR_SYNC] ?: false }
     val calendarGhostModeActive: Flow<Boolean> = context.dataStore.data.map { it[CALENDAR_GHOST_MODE_ACTIVE] ?: false }
+    val calendarSyncIds: Flow<Set<String>> = context.dataStore.data.map { it[CALENDAR_SYNC_IDS] ?: emptySet() }
+    val calendarTriggerKeywords: Flow<String> = context.dataStore.data.map { it[CALENDAR_TRIGGER_KEYWORDS] ?: "meeting,interview,focus" }
     val ghostMode: Flow<Boolean> = context.dataStore.data.map { it[GHOST_MODE] ?: false }
     val smartSpamReader: Flow<Boolean> = context.dataStore.data.map { it[SMART_SPAM_READER] ?: false }
     val smsForwardingEnabled: Flow<Boolean> = context.dataStore.data.map { it[SMS_FORWARDING_ENABLED] ?: false }
@@ -162,8 +164,6 @@ class SettingsRepository(private val context: Context) {
     val appTheme: Flow<String> = context.dataStore.data.map { it[APP_THEME] ?: "system" }
     val spamBlockedCount: Flow<Int> = context.dataStore.data.map { it[SPAM_BLOCKED_COUNT] ?: 0 }
     val customSmsRules: Flow<String> = context.dataStore.data.map { it[CUSTOM_SMS_RULES] ?: "" }
-    val whatsappBotEnabled: Flow<Boolean> = context.dataStore.data.map { it[WHATSAPP_BOT_ENABLED] ?: true }
-    val whatsappBotCustomKeywords: Flow<String> = context.dataStore.data.map { it[WHATSAPP_BOT_CUSTOM_KEYWORDS] ?: "" }
     val autoReplyAttachedFileName: Flow<String> = context.dataStore.data.map { it[AUTO_REPLY_ATTACHED_FILE_NAME] ?: "" }
     val autoReplyAttachedFileUrl: Flow<String> = context.dataStore.data.map { it[AUTO_REPLY_ATTACHED_FILE_URL] ?: "" }
     val autoReplyAttachLocation: Flow<Boolean> = context.dataStore.data.map { it[AUTO_REPLY_ATTACH_LOCATION] ?: false }
@@ -249,6 +249,11 @@ class SettingsRepository(private val context: Context) {
     }
     
     suspend fun updateBoolean(key: Preferences.Key<Boolean>, value: Boolean) {
+        cache[key] = value
+        context.dataStore.edit { it[key] = value }
+    }
+
+    suspend fun updateStringSet(key: Preferences.Key<Set<String>>, value: Set<String>) {
         cache[key] = value
         context.dataStore.edit { it[key] = value }
     }

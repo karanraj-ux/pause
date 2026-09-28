@@ -166,6 +166,7 @@ sealed class Screen(val route: String, val title: String, val icon: androidx.com
     object Schedule : Screen("schedule", "Schedule", Icons.Default.Schedule)
     object Automation : Screen("automation", "Automations", Icons.Default.Link)
     object AddSchedule : Screen("add_schedule", "Add Schedule", Icons.Default.Schedule)
+    object FocusCalendar : Screen("focus_calendar", "Schedule & Focus", Icons.Default.Event)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
@@ -262,10 +263,15 @@ fun MainScreen(viewModel: MainViewModel, widthSizeClass: WindowWidthSizeClass, s
                         navigationIconContentColor = androidx.compose.ui.graphics.Color.White,
                     ),
                     title = {
-                        Text(if (currentRoute == Screen.Settings.route) "Settings" else items.find { it.route == currentRoute }?.title ?: "Shield", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            if (currentRoute == Screen.Settings.route) "Settings"
+                            else if (currentRoute == Screen.FocusCalendar.route) Screen.FocusCalendar.title
+                            else items.find { it.route == currentRoute }?.title ?: "Shield",
+                            style = MaterialTheme.typography.titleLarge
+                        )
                     },
                     navigationIcon = {
-                        if (currentRoute == Screen.Settings.route) {
+                        if (currentRoute == Screen.Settings.route || currentRoute == Screen.FocusCalendar.route) {
                             IconButton(onClick = { navController.popBackStack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
@@ -403,7 +409,7 @@ fun MainScreen(viewModel: MainViewModel, widthSizeClass: WindowWidthSizeClass, s
                 composable(Screen.Dashboard.route) { com.example.ui.screens.DashboardScreen(viewModel, navController) }
                 composable(Screen.Protect.route) { com.example.ui.screens.ProtectScreen(viewModel) }
                 composable(Screen.Connect.route) { com.example.ui.screens.ConnectScreen(viewModel) }
-                composable(Screen.Schedule.route) { com.example.ui.screens.ScheduleScreen(viewModel, onNavigateToAdd = { navController.navigate(Screen.AddSchedule.route) }) }
+                composable(Screen.Schedule.route) { com.example.ui.screens.ScheduleScreen(viewModel, onNavigateToAdd = { navController.navigate(Screen.AddSchedule.route) }, onNavigateToFocus = { navController.navigate(Screen.FocusCalendar.route) }) }
 
                 composable(Screen.AddSchedule.route) { 
                     val scheduleViewModel: com.example.ui.viewmodels.ScheduleViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
@@ -430,6 +436,8 @@ fun MainScreen(viewModel: MainViewModel, widthSizeClass: WindowWidthSizeClass, s
                         }
                     )
                 }
+
+                composable(Screen.FocusCalendar.route) { com.example.ui.screens.ScheduleFocusScreen(navController) }
 
                 composable(Screen.Settings.route) { com.example.ui.screens.SettingsScreen() }
                 }

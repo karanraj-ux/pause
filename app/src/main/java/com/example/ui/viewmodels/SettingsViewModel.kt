@@ -58,6 +58,8 @@ data class SettingsState(
     val ghostMode: Boolean = false,
     val calendarSync: Boolean = false,
     val calendarGhostModeActive: Boolean = false,
+    val calendarSyncIds: Set<String> = emptySet(),
+    val calendarTriggerKeywords: String = "meeting,interview,focus",
     val ghostModePauseEndTime: Long = 0L,
     val smartSpamReader: Boolean = false,
     val smsForwardingEnabled: Boolean = false,
@@ -67,8 +69,6 @@ data class SettingsState(
     val forwardServiceSmsOnly: Boolean = false,
     val spamBlockedCount: Int = 0,
     val customSmsRules: String = "",
-    val whatsappBotEnabled: Boolean = true,
-    val whatsappBotCustomKeywords: String = "",
     val locationAutoShareEnabled: Boolean = false,
     val savedLocationLink: String = "",
     val savedLocationName: String = "",
@@ -95,8 +95,6 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
                     it.copy(
                         spamBlockedCount = prefs[SettingsRepository.SPAM_BLOCKED_COUNT] ?: 0,
                         customSmsRules = prefs[SettingsRepository.CUSTOM_SMS_RULES] ?: "",
-                        whatsappBotEnabled = prefs[SettingsRepository.WHATSAPP_BOT_ENABLED] ?: true,
-                        whatsappBotCustomKeywords = prefs[SettingsRepository.WHATSAPP_BOT_CUSTOM_KEYWORDS] ?: "",
                         assistantName = prefs[SettingsRepository.ASSISTANT_NAME] ?: "Assistant",
                         assistantAvatar = prefs[SettingsRepository.ASSISTANT_AVATAR] ?: "",
                         targetNumbers = prefs[SettingsRepository.TARGET_NUMBERS] ?: "",
@@ -137,6 +135,8 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
                         ghostMode = prefs[SettingsRepository.GHOST_MODE] ?: false,
                         calendarSync = prefs[SettingsRepository.CALENDAR_SYNC] ?: false,
                         calendarGhostModeActive = prefs[SettingsRepository.CALENDAR_GHOST_MODE_ACTIVE] ?: false,
+                        calendarSyncIds = prefs[SettingsRepository.CALENDAR_SYNC_IDS] ?: emptySet(),
+                        calendarTriggerKeywords = prefs[SettingsRepository.CALENDAR_TRIGGER_KEYWORDS] ?: "meeting,interview,focus",
                         smartSpamReader = prefs[SettingsRepository.SMART_SPAM_READER] ?: false,
                         smsForwardingEnabled = prefs[SettingsRepository.SMS_FORWARDING_ENABLED] ?: false,
                         smsForwardTarget = prefs[SettingsRepository.SMS_FORWARD_TARGET] ?: "",
@@ -259,14 +259,14 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
         }
     }
 
-    fun updateWhatsappBotEnabled(value: Boolean) {
-        _uiState.update { it.copy(whatsappBotEnabled = value) }
-        viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.WHATSAPP_BOT_ENABLED, value) }
+    fun updateCalendarSyncIds(value: Set<String>) {
+        _uiState.update { it.copy(calendarSyncIds = value) }
+        viewModelScope.launch { settingsRepository.updateStringSet(SettingsRepository.CALENDAR_SYNC_IDS, value) }
     }
 
-    fun updateWhatsappBotCustomKeywords(value: String) {
-        _uiState.update { it.copy(whatsappBotCustomKeywords = value) }
-        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.WHATSAPP_BOT_CUSTOM_KEYWORDS, value) }
+    fun updateCalendarTriggerKeywords(value: String) {
+        _uiState.update { it.copy(calendarTriggerKeywords = value) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.CALENDAR_TRIGGER_KEYWORDS, value) }
     }
 
     fun updateLocationAutoShareEnabled(value: Boolean) {

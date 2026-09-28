@@ -112,31 +112,7 @@ object WhatsAppBotInterpreter {
             )
         }
 
-        // 5. Status Command: #status or #state
-        if (lower == "#status" || lower.startsWith("#status ") || lower == "#state") {
-            val isSilentGuard = settingsRepo.getBooleanSync(SettingsRepository.GHOST_MODE, false)
-            val spamCount = settingsRepo.getIntSync(SettingsRepository.SPAM_BLOCKED_COUNT, 0)
-            val isSleepActive = settingsRepo.getBooleanSync(SettingsRepository.SLEEP_GHOST_MODE_ACTIVE, false)
-            val dndActive = settingsRepo.getBooleanSync(SettingsRepository.OVERRIDE_DND, false)
-
-            val guardStatus = if (isSilentGuard) "ACTIVE 🛡️" else "STANDBY"
-            val modeText = if (isSleepActive) "Quiet / Night Hours 🌙" else if (dndActive) "Focus Shielding 🎯" else "Normal Protection"
-
-            return BotInterpretationResult(
-                replyText = "🛡️ [Shield Status Brief]\n• Silent Guard: $guardStatus\n• Current Mode: $modeText\n• Calls Deflected: $spamCount\n• Offline Bot: Active\n(Send #urgent if this is critical)",
-                commandType = "STATUS"
-            )
-        }
-
-        // 6. Callback Request: #callback or #call
-        if (lower == "#callback" || lower.startsWith("#callback ") || lower == "#call") {
-            return BotInterpretationResult(
-                replyText = "📞 [Callback Request Logged]\nYour request for an immediate callback has been registered on the priority queue. The user will call you back once available.",
-                commandType = "CALLBACK"
-            )
-        }
-
-        // 7. Quiet Hours / DND Info: #dnd or #quiet
+        // 5. Quiet Hours / DND Info: #dnd or #quiet
         if (lower == "#dnd" || lower.startsWith("#dnd ") || lower == "#quiet") {
             val isSleep = settingsRepo.getBooleanSync(SettingsRepository.SLEEP_MODE_ENABLED, false)
             val startHour = settingsRepo.getIntSync(SettingsRepository.SLEEP_START_HOUR, 22)
@@ -149,57 +125,7 @@ object WhatsAppBotInterpreter {
             )
         }
 
-        // 8. Ping / Test Command: #ping
-        if (lower == "#ping" || lower.startsWith("#ping ")) {
-            return BotInterpretationResult(
-                replyText = "🏓 Pong! Shield Offline Bot is running smoothly on-device (zero cloud / 100% offline).",
-                commandType = "PING"
-            )
-        }
-
-        // 9. Help / Commands List: #help, #commands, or #info
-        if (lower == "#help" || lower == "#commands" || lower == "#info" || lower == "#bot") {
-            return BotInterpretationResult(
-                replyText = "🤖 [Shield Offline Bot Commands]\n• #urgent - Bypass silent mode & sound alarm\n• #location - Get user's Google Maps pin\n• #photo - Access media, catalog or brochure link\n• #links - View website, payment, or useful links\n• #status - Check current phone status\n• #callback - Request high-priority call back\n• #dnd - Check quiet hours schedule\n• #ping - Verify bot responsiveness",
-                commandType = "HELP"
-            )
-        }
-
-        // 10. Custom Keyword Mappings (configured by user with dynamic variables)
-        val customKeywordsString = settingsRepo.getStringSync(SettingsRepository.WHATSAPP_BOT_CUSTOM_KEYWORDS, "")
-        if (customKeywordsString.isNotBlank()) {
-            val rules = customKeywordsString.split(";")
-            for (rule in rules) {
-                if (rule.contains("->")) {
-                    val parts = rule.split("->", limit = 2)
-                    val trigger = parts[0].trim().lowercase()
-                    val responseTemplate = parts[1].trim()
-                    if (trigger.isNotEmpty() && (lower == trigger || lower.contains(trigger))) {
-                        val resolvedReply = MessageDispatcherHelper.resolveDynamicPlaceholders(
-                            context = context,
-                            template = responseTemplate,
-                            senderName = sender,
-                            senderNumber = "",
-                            settingsRepo = settingsRepo
-                        )
-                        return BotInterpretationResult(
-                            replyText = resolvedReply,
-                            commandType = "CUSTOM_RULE"
-                        )
-                    }
-                }
-            }
-        }
-
-        // 11. Catch-all for prefixed bot commands that are unrecognized
-        if (trimmed.startsWith("#")) {
-            return BotInterpretationResult(
-                replyText = "🤖 Unrecognized command '$trimmed'. Reply with #help to see supported commands (#location, #photo, #links, #urgent, #status).",
-                commandType = "UNKNOWN_COMMAND"
-            )
-        }
-
-        // No bot command matched -> return null to allow normal auto-reply logic
+        // No command matched -> return null to allow normal auto-reply logic
         return null
     }
 

@@ -1,9 +1,6 @@
 package com.example.ui.screens
 
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -56,19 +53,6 @@ fun SettingsScreen() {
         factory = SettingsViewModel.Factory(settingsRepository)
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    
-    val calendarPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (isGranted) {
-            viewModel.updateCalendarSync(true)
-            val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.shield.CalendarSyncWorker>(15, java.util.concurrent.TimeUnit.MINUTES)
-                .build()
-            androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                "CalendarSync",
-                androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
-                workRequest
-            )
-        }
-    }
 
     val uriHandler = LocalUriHandler.current
     
@@ -212,40 +196,6 @@ fun SettingsScreen() {
                 leadingContent = { Icon(Icons.Default.Warning, contentDescription = null) }
             )
             
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-            Text(
-                text = "Calendar Focus Sync",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            ListItem(
-                headlineContent = { Text("Local Busy Shield (Calendar Sync)") },
-                supportingContent = { Text("When you have a 'Busy' calendar event/meeting, Pause automatically enables Silent Guard to reject unknown calls and auto-reply until the meeting ends.") },
-                leadingContent = { Icon(Icons.Default.Event, contentDescription = null) },
-                trailingContent = { 
-                    Switch(checked = uiState.calendarSync, onCheckedChange = { isChecked ->
-                        if (isChecked) {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED) {
-                                viewModel.updateCalendarSync(true)
-                                val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.shield.CalendarSyncWorker>(15, java.util.concurrent.TimeUnit.MINUTES)
-                                    .build()
-                                androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                                    "CalendarSync",
-                                    androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
-                                    workRequest
-                                )
-                            } else {
-                                calendarPermissionLauncher.launch(Manifest.permission.READ_CALENDAR)
-                            }
-                        } else {
-                            viewModel.updateCalendarSync(false)
-                            androidx.work.WorkManager.getInstance(context).cancelUniqueWork("CalendarSync")
-                        }
-                    })
-                }
-            )
-
                         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             
             Text(

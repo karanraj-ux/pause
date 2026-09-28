@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,7 +63,7 @@ import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
+fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit, onNavigateToFocus: () -> Unit) {
     val context = LocalContext.current
     val scheduleViewModel: ScheduleViewModel = viewModel(
         factory = ScheduleViewModel.Factory(
@@ -106,7 +108,7 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                 Text("Manage your sleep hours, calendar sync, and scheduled communications.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Unified Sleep Schedule Card
+                // Schedule & Focus (Calendar Sync) — lives in the Schedule tab
                 val settingsViewModel: com.example.ui.viewmodels.SettingsViewModel = viewModel(
                     factory = com.example.ui.viewmodels.SettingsViewModel.Factory(
                         (context.applicationContext as com.example.ShieldApplication).container.settingsRepository
@@ -114,6 +116,46 @@ fun ScheduleScreen(viewModel: MainViewModel, onNavigateToAdd: () -> Unit) {
                 )
                 val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
 
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f))
+                        .clickable { onNavigateToFocus() },
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Event, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text("Schedule & Focus", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (settingsState.calendarSync) "Calendar sync is on — tap to choose calendars, trigger rules, and preview events"
+                                    else "Auto Focus Mode from your calendar — tap to set up",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                // Unified Sleep Schedule Card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()

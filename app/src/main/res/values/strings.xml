@@ -17,7 +17,7 @@
     <string name="accessibility_service_description">Pause Smart Spam Reader: Detects incoming spam calls flagged by Truecaller and instantly blocks them.</string>
 
     <!-- Centralized Repository & Project Metadata (Update here when changing repo name or owner) -->
-    <string name="repo_url">https://github.com/karanraj-ux/Goohle-studio-apk</string>
+    <string name="repo_url">https://github.com/karanraj-ux/pause</string>
     <string name="github_sponsor_url">https://github.com/sponsors/karanraj-ux</string>
     <string name="coffee_sponsor_url">https://buymeacoffee.com/karanraj_ux</string>
     <string name="liberapay_url">https://liberapay.com/karanraj_ux</string>

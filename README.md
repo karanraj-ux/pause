@@ -1,124 +1,136 @@
-# ⏸️ Pause
-> **The autonomous, privacy-first call gatekeeper, DND VIP bypass, and focus auto-responder for Android.**
+# Pause
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Zero Telemetry](https://img.shields.io/badge/Telemetry-Zero%20%2F%20None-brightgreen.svg)](#-privacy--security-model)
-[![100% Offline Core](https://img.shields.io/badge/Core-100%25%20On--Device-orange.svg)](#-privacy--security-model)
-[![Android Compatibility](https://img.shields.io/badge/Android-8.0%2B%20(API%2026%2B)-green.svg)](#)
+<p align="center">
+  <img src="assets/app-icon.png" alt="Pause app icon" width="160"/>
+</p>
 
----
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"/>
+  <img src="https://img.shields.io/badge/Platform-Android%2013%2B-blue.svg" alt="Android 13+"/>
+  <img src="https://img.shields.io/badge/Privacy-100%25%20On--Device-purple.svg" alt="100% On-Device"/>
+  <img src="https://img.shields.io/badge/Language-Kotlin-orange.svg" alt="Kotlin"/>
+  <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-09D3AC.svg" alt="Jetpack Compose"/>
+</p>
 
-## 🛑 Why Pause?
+**Pause** is a 100% on-device Android focus companion. It guards your attention by automatically handling calls and messages while you're busy — rejecting unknown callers, letting VIPs through silent mode, and sending instant auto-replies over SMS and WhatsApp.
 
-Modern communication apps and stock phone dialers present an all-or-nothing dilemma:
-
-1. **The Do Not Disturb Dilemma**: If you mute everything, your family or closest contacts cannot reach you in genuine emergencies. If you keep the ringer active, robocalls, unsaved callers, and group chat notifications shatter your focus and sleep.
-2. **Missing Calls While Busy**: When you are in meetings, driving, sleeping, or doing deep focus work, people keep calling repeatedly because they do not know why you cannot answer.
-3. **The Cloud Surveillance Trap**: Traditional commercial call blockers demand access to your entire address book, upload your private call logs, read your OTPs, and sell your network graph to data brokers.
-
-**Pause** gives you complete, sovereign control over your incoming calls and messages. It operates entirely as an **on-device personal gatekeeper**.
+Source: https://github.com/karanraj-ux/pause
 
 ---
 
-## 🎯 Real-Life Everyday Scenarios
+## Why Pause Exists
 
-| Real-Life Scenario | What Normally Happens | How Pause Solves It |
-| :--- | :--- | :--- |
-| **Deep Work / Coding Sprint** | Phone is on silent, but you're constantly glancing at the screen worrying about an urgent family call. | **Ghost Mode + Starred DND Bypass**: All spam and unsaved callers are instantly rejected with zero screen distraction, but a call from a **Starred family contact** punches through silent mode and rings immediately. |
-| **Driving / In a Meeting** | Client or colleague calls three times in a row, thinking you're intentionally ignoring them. | **Instant Multi-Tier Auto-Responder**: Pause immediately replies via SMS or WhatsApp with your custom message: *"In a meeting until 3 PM. If urgent, reply #emergency to alert me."* |
-| **Secondary Phone / Work Device** | You leave your work phone at your desk or home while heading out, missing urgent client texts or bank OTPs. | **Smart Multi-Channel Forwarder**: Automatically mirrors critical SMS or missed call alerts to your Telegram bot, Discord webhook, or secondary phone number securely. |
-| **Sound Sleep at Night** | Muted phone prevents you from hearing a critical 3 AM emergency from a loved one or on-call teammate. | **Guardian Protocol & Emergency Siren**: If a VIP repeats a call or texts `URGENT`, Pause sounds an audible bypass alarm tone so you wake up when it truly counts. |
+Your phone has two failure modes: it either interrupts you at the worst moment, or it makes you unreachable to the people who actually matter. Pause fixes both. It never sends your data to a server — every decision happens on your phone, in milliseconds, with zero telemetry.
 
 ---
 
-## ⚡ Core Capabilities
+## Your Everyday Use Cases
 
-### 🛡️ 1. Focus Mode & Unknown Call Rejection
-* **WhatsApp Call Shielding**: When Focus Mode (Silent Guard) is active, incoming WhatsApp audio and video calls from unknown or unsaved numbers are automatically declined and silenced before your device rings.
-* **Cellular Call Screening**: Automatically deflects unknown, spam, or telemarketing phone calls during focus sessions.
-* **Audit Log**: Every deflection and automated action is recorded locally in your private on-device history.
+### The Morning You Actually Get to Sleep In
+You had a rough night. Set Pause to silent mode until 8:30 AM. When your partner messages *"Good morning! Are you awake yet?"* on WhatsApp, Pause replies instantly over the internet: *"Still resting! Phone is on silent until 8:30 AM. Will catch up shortly."* You wake up when you want to.
 
-### 🌟 2. Starred & VIP Contact DND Silent Bypass
-* **Never Miss What Matters**: Keep your phone in Do Not Disturb or Silent Mode with peace of mind.
-* **Ringer Override for Starred Contacts**: When a contact marked as **Starred** in your Android contacts (or listed in your VIP settings) calls via cellular or WhatsApp, Pause temporarily overrides silent mode, raises the alert ringer, and sounds the ringtone so the call breaks through.
-* **Auto-Restoration**: Once the call concludes, your original volume and ringer mode are immediately restored.
+### The Deep Work Afternoon
+You're in flow state with a deadline at 5 PM. Unknown numbers get silently rejected and receive your auto-reply. But when your mom — a starred contact — calls twice in five minutes, Pause recognizes the pattern and rings through. Emergencies never miss you; everything else waits.
 
-### 💬 3. Instant Auto-Responder & Forwarder (SMS, WhatsApp, Telegram, Discord)
-* **Chosen Tiered Responses**: Send immediate, personalized responses when you are occupied:
-  * **Starred / VIP Contacts**: Warm notes informing them your phone is on silent, with emergency keyword overrides.
-  * **Known Contacts**: Courteous status updates (e.g., *"In focus mode until 4 PM; will get back to you shortly"*).
-  * **Unknown Senders**: Clear boundary notices filtering out unsolicited communication.
-* **Smart Forwarding to Telegram & Discord**: Forward incoming notifications, SMS, or missed-call alerts directly to your private Telegram Bot chat or Discord channel via secure HTTPS webhooks.
-* **WhatsApp Quick-Reply**: Replies to incoming WhatsApp messages directly over the internet via native notification actions without requiring third-party bot servers.
-* **Emergency Keyword Trigger**: If anyone texts emergency triggers (such as `URGENT` or `#emergency`), Pause triggers an audible alert tone on your device.
+### The Meeting You Can't Be Disturbed In
+Pause syncs with your calendar. When your "Team Standup" or "Interview" starts, Focus Mode activates automatically — unknown calls are rejected, WhatsApp chats get your *"In a meeting, will reply after"* message. When the event ends, everything returns to normal on its own.
 
-### ⏰ 4. Local Scheduled SMS & Sleep Sync
-* **Scheduled SMS Tasks**: Schedule important messages or follow-ups to be sent at specific dates, times, or recurring intervals. Dispatches directly from your device's SIM card without cloud dependencies.
-* **Sleep & Calendar Sync**: Automatically engages Ghost Mode and DND protections during your scheduled bedtime or active calendar events, then deactivates them when you wake up.
+### The Lost Phone Panic
+Your phone is on silent somewhere in the house. From any other phone, text **URGENT** to your number. Pause detects the keyword, overrides silent mode, and sounds a loud 15-second alarm so you can find it.
 
-### 🎛️ 5. Quick Action Desktop Widgets
-* **Master Kill Switch**: Instantly disable all automation rules with a single tap.
-* **Ghost Mode Toggle**: Quickly silence unsaved callers before entering meetings, classes, or quiet environments.
-* **1-Hour Temporary Pause**: Temporarily suspend blocking rules (ideal when expecting a food delivery or courier).
-* **DND Bypass Toggle**: Rapidly toggle whether Starred VIPs can break through silent mode.
+### The Important Delivery
+Expecting a courier in the next hour? Tap the home-screen widget for a 1-hour Focus pause, or add the delivery number as a one-time VIP so their call always rings through.
+
+### The Drive Home
+Connect to your car's Bluetooth and Pause can activate Drive Mode — WhatsApp messages get an automatic *"Driving right now, will reply when I arrive"* while your navigation keeps working.
 
 ---
 
-## 🔒 Privacy & Security Model
+## Main Capabilities
 
-* **Hardware-Backed AES-256 Encryption**: All local rules, configurations, and communication logs are stored in an encrypted SQLite database using **SQLCipher**, with cryptographic keys secured by the **Android Hardware Keystore**.
-* **Zero Telemetry & Zero Trackers**: No Google Analytics, no Crashlytics, no advertising SDKs, and no tracking libraries.
-* **Zero Cloud Dependence**: All filtering decisions, starred contact lookups, and scheduled tasks execute 100% on your device silicon.
-
----
-
-## 📋 Transparent Permissions Breakdown
-
-To deliver reliable, autonomous on-device protection, Pause uses the following Android permissions strictly for local execution:
-
-| Permission | Purpose & Justification |
-| :--- | :--- |
-| `READ_PHONE_STATE` & `READ_CALL_LOG` | Detects incoming cellular calls and call terminations to trigger missed-call automation. |
-| `READ_CONTACTS` | Inspects local contacts on-device to determine if an incoming caller is **Starred** or a saved VIP contact. Contacts are never transmitted anywhere. |
-| `ACCESS_NOTIFICATION_POLICY` | Enables temporary DND bypass so Starred/VIP emergency calls can ring while your device is muted. |
-| `SEND_SMS` & `RECEIVE_SMS` | Dispatches missed-call auto-replies via cellular SIM and sends locally scheduled SMS tasks. |
-| `BIND_NOTIFICATION_LISTENER_SERVICE` | Detects incoming WhatsApp calls to decline unknown numbers and sends instant quick-replies over the internet. |
-| `RECEIVE_BOOT_COMPLETED` & `SCHEDULE_EXACT_ALARM` | Ensures your scheduled SMS tasks and quiet hours persist reliably after your device reboots. |
-| `USE_BIOMETRIC` | Provides optional fingerprint or biometric security to protect app settings. |
+| Feature | What It Does |
+|---|---|
+| **Focus Mode (Silent Guard)** | One-tap attention shield. Rejects unknown calls, silences notifications, and auto-replies to messages while active. |
+| **WhatsApp Auto-Reply** | Replies instantly to incoming WhatsApp chats directly over the internet via notification quick-reply — no server involved. One toggle, three recipient tiers. |
+| **SMS Auto-Reply** | Replies to missed calls and texts from your carrier SIM, with separate messages for VIPs, saved contacts, and unknown numbers. |
+| **Emergency Keyword Override** | A message containing **URGENT** or **#urgent** bypasses silent mode and sounds a loud alarm — for lost phones and real emergencies. |
+| **Starred / VIP DND Bypass** | Starred contacts ring through Do Not Disturb. Repeat callers (e.g. 3 calls in 5 minutes) can optionally break through too. |
+| **Calendar Focus Sync** | Busy calendar events automatically activate Focus Mode and deactivate it when the event ends. You choose which calendars count and which keywords trigger it. |
+| **Scheduled SMS** | Compose messages now, send them later from your SIM — reminders, birthday wishes, work updates. |
+| **Call Forwarding Rules** | Forward unknown callers to a second phone while auto-replying to them. |
+| **Drive Mode** | Auto-replies on WhatsApp when connected to your car's Bluetooth. |
+| **Home-Screen Widgets** | Toggle Focus Mode, trigger a 1-hour pause, or hit the master kill switch from your launcher. |
 
 ---
 
-## 🛠️ Building From Source
+## WhatsApp Auto-Reply
 
-### Prerequisites
-* Java Development Kit (JDK 17 or higher)
-* Android SDK (Compile SDK 34, Min SDK 26)
+One toggle: **Enable WhatsApp Auto-Reply**. Pause watches WhatsApp notifications and replies instantly over your phone's internet connection using WhatsApp's own quick-reply action. There are no bot commands to learn and no simulator to fiddle with — it just sends your message.
 
-### Build Commands
+**Three recipient tiers** — different messages for different relationships:
 
-```bash
-# Run unit tests
-gradle :app:testDebugUnitTest
+- **Inner Circle (VIP):** numbers you marked as VIP in Pause — your closest people get your warmest message.
+- **Saved Contacts:** anyone in your address book gets your standard reply.
+- **Unknown Numbers:** unsaved numbers get a polite boundary message.
 
-# Build release APK
-gradle :app:assembleRelease
-```
+**Safety rules are always on:** blocked or muted numbers never get replies, shortcodes (bank OTP alerts, etc.) are ignored, and each number gets at most 3 auto-replies per hour so bots can't loop with each other.
 
-The compiled release APK will be located at:
-`app/build/outputs/apk/release/app-release.apk`
+A small set of functional keywords still works over WhatsApp for people who know them: **#urgent** (emergency alarm), **#location** (shares your saved location), **#photo** (shares your photo link), **#links** (shares your quick links), and **#dnd** (checks your quiet hours).
 
 ---
 
-## ⚙️ Configuration & Customization
+## Starred / VIP Call Detection
 
-All repository links, donation endpoints, and project metadata are centralized in:
-`app/src/main/res/values/strings.xml`
+Pause treats your starred contacts as your inner circle:
 
-You can update `repo_url`, `github_sponsor_url`, and related values directly in that file without modifying any Kotlin source code.
+- Their calls bypass silent mode and Do Not Disturb.
+- Optional **repeat-caller bypass**: if anyone calls 3 times within 5 minutes, the third call rings through — persistence usually means urgency.
+- VIPs can have their own divert number and their own auto-reply message.
 
 ---
 
-## 📄 License
+## Focus Mode (Silent Guard) & Calendar Sync
 
-Pause is distributed under the terms of the [MIT License](LICENSE).
-Copyright (c) 2026.
+**Focus Mode** is the master switch: unknown calls are rejected before your ringer disturbs you, WhatsApp and SMS auto-replies go out, and your chosen VIPs can still reach you.
+
+**Calendar Sync** (in the **Schedule & Focus** section) connects Focus Mode to your real life:
+
+- **Choose which calendars count** — Work, Personal, Meetings, or all of them.
+- **Smart triggers** — Focus activates only when an event is marked **Busy** or its title contains keywords you choose (e.g. *Meeting, Interview, Focus*).
+- **Live preview** — see your upcoming events and exactly which ones will trigger Focus Mode and which auto-reply will go out.
+- When the event ends, Focus Mode switches itself off. No manual toggling, no forgotten silent phones.
+
+---
+
+## Privacy by Design
+
+- **100% on-device.** Call filtering, keyword detection, auto-replies, and calendar checks all run locally. Pause makes zero network requests to any Pause server — because there isn't one.
+- **No telemetry.** No analytics SDKs, no crash reporters phoning home, no advertising.
+- **Hardware-encrypted storage.** Your rules, logs, and preferences live in a SQLCipher database encrypted with AES-256, with keys in the Android hardware keystore.
+- **Your contacts never leave the phone.** Starred/VIP matching and contact lookups use Android's on-device contacts provider only.
+- **WhatsApp replies use your internet, not a cloud.** Replies are sent through WhatsApp's own notification quick-reply action on your device.
+
+---
+
+## Permissions Used
+
+Every permission exists for one on-device feature — nothing is collected or transmitted:
+
+| Permission | Why Pause Needs It |
+|---|---|
+| Phone / Call Log | Detect incoming calls, identify unknown vs. starred callers, reject spam |
+| SMS (Send / Receive / Read) | SMS auto-replies, scheduled SMS, URGENT keyword detection |
+| Contacts | Match callers to VIPs / saved contacts / unknown numbers |
+| Notifications (+ Notification Access) | Read WhatsApp notifications to send quick-reply auto-responses |
+| Do Not Disturb Access | Let starred contacts ring through silent mode |
+| Calendar (Read) | Calendar Focus Sync — detect Busy events |
+| Location (optional) | Share your location via the #location keyword, only when you enable it |
+| Bluetooth (optional) | Drive Mode auto-reply when connected to your car |
+
+---
+
+## Source & License
+
+Pause is 100% open source under the MIT License: https://github.com/karanraj-ux/pause
+
+*Pause — your attention, defended.*
