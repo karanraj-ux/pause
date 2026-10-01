@@ -18,11 +18,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Quickreply
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -39,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.MainViewModel
+import com.example.data.repository.NumberReplyRule
 import com.example.ui.viewmodels.SettingsViewModel
 
 
@@ -552,6 +558,178 @@ fun AutoReplyTab(viewModel: MainViewModel) {
                                 maxLines = 4
                             )
                         }
+                    }
+
+                    // 3. Replies for Specific Numbers — own reply set per number (1, 2, 3…)
+                    var showRuleDialog by remember { mutableStateOf(false) }
+                    var editingRule by remember { mutableStateOf<NumberReplyRule?>(null) }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.05f)),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Replies for Specific Numbers",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                FilledTonalButton(onClick = { editingRule = null; showRuleDialog = true }) {
+                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Add")
+                                }
+                            }
+                            Text(
+                                "Give any number its own set of replies. When they message you on WhatsApp, Pause sends each reply as its own message, in order — this overrides the VIP / contact / unknown messages above.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            val numberRules = settingsState.numberReplyRules
+                            if (numberRules.isEmpty()) {
+                                Text(
+                                    "No number-specific replies yet. Tap Add to create one.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                numberRules.forEach { rule ->
+                                    key(rule.number) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        if (rule.name.isNotBlank()) "${rule.name} • ${rule.number}" else rule.number,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    val preview = rule.replies.first()
+                                                    Text(
+                                                        "${rule.replies.size} ${if (rule.replies.size == 1) "reply" else "replies"}: ${preview.take(60)}${if (preview.length > 60) "…" else ""}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 2
+                                                    )
+                                                }
+                                                IconButton(onClick = { editingRule = rule; showRuleDialog = true }) {
+                                                    Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
+                                                }
+                                                IconButton(onClick = {
+                                                    settingsViewModel.setNumberReplyRules(numberRules.filterNot { it.number == rule.number })
+                                                }) {
+                                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (showRuleDialog) {
+                        val base = editingRule
+                        var dlgName by remember(base) { mutableStateOf(base?.name ?: "") }
+                        var dlgNumber by remember(base) { mutableStateOf(base?.number ?: "") }
+                        var dlgReplies by remember(base) { mutableStateOf((base?.replies ?: emptyList()).ifEmpty { listOf("") }) }
+
+                        AlertDialog(
+                            onDismissRequest = { showRuleDialog = false },
+                            title = { Text(if (base == null) "Add number replies" else "Edit number replies") },
+                            text = {
+                                Column(
+                                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = dlgName,
+                                        onValueChange = { dlgName = it },
+                                        label = { Text("Name (optional)") },
+                                        placeholder = { Text("e.g. Mom") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        singleLine = true
+                                    )
+                                    OutlinedTextField(
+                                        value = dlgNumber,
+                                        onValueChange = { dlgNumber = it },
+                                        label = { Text("Phone number") },
+                                        placeholder = { Text("+91 98765 43210") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        singleLine = true
+                                    )
+                                    Text(
+                                        "Replies — sent in order, one WhatsApp message each",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    dlgReplies.forEachIndexed { i, rep ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            OutlinedTextField(
+                                                value = rep,
+                                                onValueChange = { v ->
+                                                    dlgReplies = dlgReplies.toMutableList().also { it[i] = v }
+                                                },
+                                                label = { Text("Reply ${i + 1}") },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(12.dp),
+                                                minLines = 2,
+                                                maxLines = 4
+                                            )
+                                            if (dlgReplies.size > 1) {
+                                                IconButton(onClick = {
+                                                    dlgReplies = dlgReplies.toMutableList().also { it.removeAt(i) }
+                                                }) {
+                                                    Icon(Icons.Filled.Close, contentDescription = "Remove reply")
+                                                }
+                                            }
+                                        }
+                                    }
+                                    TextButton(onClick = { dlgReplies = dlgReplies + "" }) {
+                                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Add reply")
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    val cleanReplies = dlgReplies.map { it.trim() }.filter { it.isNotBlank() }
+                                    if (dlgNumber.trim().isNotBlank() && cleanReplies.isNotEmpty()) {
+                                        val newRule = NumberReplyRule(
+                                            number = dlgNumber.trim(),
+                                            name = dlgName.trim(),
+                                            replies = cleanReplies
+                                        )
+                                        settingsViewModel.setNumberReplyRules(
+                                            settingsState.numberReplyRules.filterNot {
+                                                it.number == newRule.number || (base != null && it.number == base.number)
+                                            } + newRule
+                                        )
+                                        showRuleDialog = false
+                                    }
+                                }) { Text("Save") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showRuleDialog = false }) { Text("Cancel") }
+                            }
+                        )
                     }
 
                     // Loop & Cost Safety Guarantee
