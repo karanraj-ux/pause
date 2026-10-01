@@ -46,6 +46,7 @@ class SettingsRepository(private val context: Context) {
         val VIP_REPLY_MSG = stringPreferencesKey("vip_reply_msg")
         val STANDARD_REPLY_MSG = stringPreferencesKey("standard_reply_msg")
         val UNKNOWN_REPLY_MSG = stringPreferencesKey("unknown_reply_msg")
+        val WHATSAPP_NUMBER_REPLIES = stringPreferencesKey("whatsapp_number_replies")
         val SELECTED_SIM_ID = stringPreferencesKey("selected_sim_id")
         
         val SHOW_KJ_COMPANION = booleanPreferencesKey("show_kj_companion")
@@ -238,6 +239,9 @@ class SettingsRepository(private val context: Context) {
 
     fun getLongSync(key: Preferences.Key<Long>, default: Long = 0L): Long = getSync(key, default)
 
+    fun getNumberReplyRulesSync(): List<NumberReplyRule> =
+        parseNumberReplyRules(getStringSync(WHATSAPP_NUMBER_REPLIES, ""))
+
     suspend fun updateString(key: Preferences.Key<String>, value: String) {
         cache[key] = value
         context.dataStore.edit { it[key] = value }
@@ -266,5 +270,55 @@ class SettingsRepository(private val context: Context) {
     suspend fun removeKey(key: Preferences.Key<*>) {
         cache.remove(key)
         context.dataStore.edit { it.remove(key) }
+    }
+}
+
+/**
+ * Per-number WhatsApp auto-reply rule: when a message arrives from [number],
+ * Pause sends each entry of [replies] as its own WhatsApp message, in order
+ * (reply 1, reply 2, reply 3…).
+ */
+data class NumberReplyRule(
+    val number: String = "",
+    val name: String = "",
+    val replies: List<String> = emptyList()
+)
+
+/** Digits-only phone normalization used for number matching. */
+fun normalizePhoneDigits(input: String): String = input.filter { it.isDigit() }
+
+fun numberReplyRulesToJson(rules: List<NumberReplyRule>): String {
+    val arr = org.json.JSONArray()
+    for (r in rules) {
+        val obj = org.json.JSONObject()
+        obj.put("number", r.number)
+        obj.put("name", r.name)
+        val ra = org.json.JSONArray()
+        for (rep in r.replies) ra.put(rep)
+        obj.put("replies", ra)
+        arr.put(obj)
+    }
+    return arr.toString()
+}
+
+fun parseNumberReplyRules(json: String): List<NumberReplyRule> {
+    if (json.isBlank()) return emptyList()
+    return try {
+        val arr = org.json.JSONArray(json)
+        List(arr.length()) { i ->
+            val obj = arr.getJSONObject(i)
+            val replies = mutableListOf<String>()
+            val ra = obj.optJSONArray("replies")
+            if (ra != null) {
+                for (j in 0 until ra.length()) replies.add(ra.optString(j))
+            }
+            NumberReplyRule(
+                number = obj.optString("number"),
+                name = obj.optString("name"),
+                replies = replies.filter { it.isNotBlank() }
+            )
+        }.filter { it.number.isNotBlank() && it.replies.isNotEmpty() }
+    } catch (e: Exception) {
+        emptyList()
     }
 }
