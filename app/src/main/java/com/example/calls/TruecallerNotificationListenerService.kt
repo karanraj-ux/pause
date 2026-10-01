@@ -7,6 +7,7 @@ import android.telecom.TelecomManager
 import android.util.Log
 import com.example.ShieldApplication
 import com.example.data.repository.SettingsRepository
+import com.example.data.repository.normalizePhoneDigits
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -321,96 +322,222 @@ class TruecallerNotificationListenerService : NotificationListenerService() {
         val focusActive = isFocusModeActive(settingsRepo)
         val autoReplyWhatsapp = settingsRepo.getBooleanSync(SettingsRepository.AUTO_RESPOND_WHATSAPP, false)
 
-        if (!focusActive && !autoReplyWhatsapp) return
-        if (senderTitle.isBlank() || messageText.isBlank()) return
-        if (messageText.startsWith("You:", ignoreCase = true)) return
+        if (!focusActive && !autoReplyWhatsapp) {
+            Log.d("TruecallerNL", "WhatsApp auto-reply skipped (focus=$focusActive, autoReply=$autoReplyWhatsapp)")
+            return
+        }
+        if (senderTitle.isBlank()) {
+            Log.d("TruecallerNL", "WhatsApp auto-reply skipped: blank sender title")
+            return
+        }
+        // Media messages (photo / voice note / video / sticker) carry no EXTRA_TEXT —
+        // still auto-reply instead of silently dropping them.
+        val isMedia = messageText.isBlank()
+        val effectiveText = if (isMedia) "[media]" else messageText
+        if (effectiveText.startsWith("You:", ignoreCase = true)) return
 
         val cleanSenderKey = senderTitle.replace(Regex("[^a-zA-Z0-9+]"), "").lowercase()
         val prefs = getSharedPreferences("whatsapp_reply_history", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
-        val lastTime = prefs.getLong("time_$cleanSenderKey", 0L)
-        val count = prefs.getInt("count_$cleanSenderKey", 0)
+
+        // ---- DEDUP: exactly one reply per distinct message ----
+        // onNotificationPosted() fires for every *update* of WhatsApp's messaging-style
+        // notification, not just for new messages. The old "3 per hour" counter counted
+        // raw notification posts, so one incoming message produced up to 3 replies.
+        // A fingerprint of (sender + message) collapses those updates into one reply.
+        val fingerprint = if (isMedia) {
+            // Can't fingerprint media content: bucket by minute so rapid notification
+            // updates dedup but a genuinely new photo a minute later still replies.
+            "$cleanSenderKey|media|${now / 60000}"
+        } else {
+            "$cleanSenderKey|${effectiveText.trim().hashCode()}"
+        }
+        val lastFp = prefs.getString("fp_$cleanSenderKey", null)
+        val lastFpTime = prefs.getLong("fp_time_$cleanSenderKey", 0L)
+        if (fingerprint == lastFp && now - lastFpTime < 3 * 60 * 1000L) {
+            Log.d("TruecallerNL", "WhatsApp dedup: already replied to this message from $senderTitle, skipping")
+            return
+        }
 
         // Emergency Keyword Override
-        val trimmed = messageText.trim()
+        val trimmed = effectiveText.trim()
         val lower = trimmed.lowercase()
-        val isEmergency = lower == "#urgent" || lower.startsWith("#urgent ") ||
+        val isEmergency = !isMedia && (lower == "#urgent" || lower.startsWith("#urgent ") ||
                 lower == "#emergency" || lower.startsWith("#emergency ") ||
                 trimmed.equals("URGENT", ignoreCase = false) ||
-                trimmed.equals("EMERGENCY", ignoreCase = false)
+                trimmed.equals("EMERGENCY", ignoreCase = false))
 
-        if (isEmergency) {
+        // interpretMessage() triggers the alarm as a side effect; use its reply text
+        // (it appends the location link) instead of discarding it.
+        val botResult = if (isEmergency) {
             com.example.shield.WhatsAppBotInterpreter.interpretMessage(this, senderTitle, messageText, settingsRepo)
-        }
+        } else null
 
-        // Loop prevention: Max 3 auto-replies per contact per hour
+        // Loop prevention: hourly safety cap per contact (dedup above handles the spam;
+        // this only guards pathological loops, e.g. two bots replying to each other).
+        val hourStart = prefs.getLong("time_$cleanSenderKey", 0L)
+        var count = prefs.getInt("count_$cleanSenderKey", 0)
+        val hourReset = now - hourStart > 3600000
         if (!isEmergency) {
-            if (now - lastTime > 3600000) {
-                prefs.edit().putLong("time_$cleanSenderKey", now).putInt("count_$cleanSenderKey", 1).apply()
-            } else {
-                if (count >= 3) {
-                    Log.d("TruecallerNL", "WhatsApp rate limit reached for $senderTitle")
-                    return
-                }
-                prefs.edit().putInt("count_$cleanSenderKey", count + 1).putLong("time_$cleanSenderKey", now).apply()
+            if (!hourReset && count >= 10) {
+                Log.d("TruecallerNL", "WhatsApp hourly safety cap reached for $senderTitle")
+                return
             }
         }
 
-        // Select chosen auto-reply message based on recipient relationship
-        val isStarred = isStarredOrChosenContact(senderTitle, settingsRepo)
-        val isKnownContact = isStarred || isKnownSavedContact(senderTitle)
-
-        val replyText = if (isEmergency) {
-            "⚠️ [EMERGENCY ALERT DELIVERED]\nYour urgent message bypassed silent mode and sounded the phone alarm. The user has been alerted."
-        } else if (isStarred) {
-            settingsRepo.getStringSync(SettingsRepository.VIP_REPLY_MSG, "Hey, my phone is on silent. If this is an emergency, message URGENT.")
-        } else if (!isKnownContact) {
-            settingsRepo.getStringSync(SettingsRepository.UNKNOWN_REPLY_MSG, "I am currently in Focus Mode and do not take unsaved incoming messages right away. I will get back to you shortly.")
+        // ---- Choose reply text(s) ----
+        val replies: List<String>
+        val logStatus: String
+        val numberRule = findNumberReplyRule(senderTitle, settingsRepo.getNumberReplyRulesSync())
+        if (numberRule != null) {
+            // Specific-number rule wins: send each configured reply as its own message.
+            replies = numberRule.replies
+            logStatus = "WHATSAPP_NUMBER_RULE"
+        } else if (isEmergency) {
+            replies = listOf(botResult?.replyText
+                ?: "⚠️ [EMERGENCY ALERT DELIVERED]\nYour urgent message bypassed silent mode and sounded the phone alarm. The user has been alerted.")
+            logStatus = "WHATSAPP_EMERGENCY"
         } else {
-            settingsRepo.getStringSync(SettingsRepository.STANDARD_REPLY_MSG, "Hi, I am currently focused or away. I will get back to you as soon as I can.")
+            val isStarred = isStarredOrChosenContact(senderTitle, settingsRepo)
+            val isKnownContact = isStarred || isKnownSavedContact(senderTitle)
+            val single = if (isStarred) {
+                settingsRepo.getStringSync(SettingsRepository.VIP_REPLY_MSG, "Hey, my phone is on silent. If this is an emergency, message URGENT.")
+            } else if (!isKnownContact) {
+                settingsRepo.getStringSync(SettingsRepository.UNKNOWN_REPLY_MSG, "I am currently in Focus Mode and do not take unsaved incoming messages right away. I will get back to you shortly.")
+            } else {
+                settingsRepo.getStringSync(SettingsRepository.STANDARD_REPLY_MSG, "Hi, I am currently focused or away. I will get back to you as soon as I can.")
+            }
+            replies = listOf(single)
+            logStatus = if (isStarred) "WHATSAPP_VIP_REPLY" else "WHATSAPP_AUTO_REPLY"
         }
 
-        val logStatus = if (isEmergency) "WHATSAPP_EMERGENCY" else if (isStarred) "WHATSAPP_VIP_REPLY" else "WHATSAPP_AUTO_REPLY"
+        // ---- Send ----
+        if (findReplyAction(sbn) == null) {
+            // Common "sometimes doesn't work" cause, now visible in logcat:
+            // summary notifications and dismissed threads expose no RemoteInput.
+            Log.w("TruecallerNL", "WhatsApp auto-reply skipped: notification has no RemoteInput reply action ($senderTitle)")
+            return
+        }
+        sendWhatsAppReplies(sbn, replies)
+        Log.d("TruecallerNL", "WhatsApp auto-reply sent to $senderTitle (${replies.size} message(s), rule=$logStatus)")
 
-        // Send chosen reply directly over internet via WhatsApp RemoteInput
-        val notification = sbn.notification
-        val actions = notification.actions
-        if (actions != null) {
-            for (action in actions) {
-                val remoteInputs = action.remoteInputs
-                if (remoteInputs != null && remoteInputs.isNotEmpty()) {
-                    for (remoteInput in remoteInputs) {
-                        val replyBundle = android.os.Bundle()
-                        replyBundle.putCharSequence(remoteInput.resultKey, replyText)
-                        val replyIntent = android.content.Intent()
-                        android.app.RemoteInput.addResultsToIntent(arrayOf(remoteInput), replyIntent, replyBundle)
-                        try {
-                            action.actionIntent.send(this, 0, replyIntent)
-                            Log.d("TruecallerNL", "WhatsApp auto-reply sent to $senderTitle over internet: $replyText")
+        prefs.edit()
+            .putString("fp_$cleanSenderKey", fingerprint)
+            .putLong("fp_time_$cleanSenderKey", now)
+            .putLong("time_$cleanSenderKey", if (hourReset) now else hourStart)
+            .putInt("count_$cleanSenderKey", if (hourReset) 1 else count + 1)
+            .apply()
 
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    val appDb = (applicationContext as ShieldApplication).container.database
-                                    appDb.smsLogDao().insert(
-                                        com.example.data.SmsLogEntity(
-                                            timestamp = System.currentTimeMillis(),
-                                            sender = senderTitle,
-                                            message = "WhatsApp Auto-Reply: $replyText",
-                                            targetNumber = "",
-                                            status = logStatus
-                                        )
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e("TruecallerNL", "Error logging WhatsApp reply", e)
-                                }
-                            }
-                            return
-                        } catch (e: Exception) {
-                            Log.e("TruecallerNL", "Failed to send WhatsApp RemoteInput reply", e)
-                        }
-                    }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val appDb = (applicationContext as ShieldApplication).container.database
+                appDb.smsLogDao().insert(
+                    com.example.data.SmsLogEntity(
+                        timestamp = System.currentTimeMillis(),
+                        sender = senderTitle,
+                        message = "WhatsApp Auto-Reply (${replies.size}): ${replies.joinToString(" | ").take(500)}",
+                        targetNumber = "",
+                        status = logStatus
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e("TruecallerNL", "Error logging WhatsApp reply", e)
+            }
+        }
+    }
+
+    /** Finds the direct-reply (RemoteInput) action on a WhatsApp notification, if any. */
+    private fun findReplyAction(sbn: StatusBarNotification): Pair<android.app.Notification.Action, android.app.RemoteInput>? {
+        val actions = sbn.notification.actions ?: return null
+        for (action in actions) {
+            val remoteInputs = action.remoteInputs
+            if (!remoteInputs.isNullOrEmpty()) {
+                return action to remoteInputs[0]
+            }
+        }
+        return null
+    }
+
+    /**
+     * Sends each reply as its own WhatsApp message with a short delay between them,
+     * so a number-specific rule with replies 1, 2, 3 lands as three separate messages.
+     */
+    private fun sendWhatsAppReplies(sbn: StatusBarNotification, replies: List<String>) {
+        val (action, remoteInput) = findReplyAction(sbn) ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            replies.forEachIndexed { index, replyText ->
+                if (index > 0) kotlinx.coroutines.delay(1500)
+                try {
+                    val replyBundle = android.os.Bundle()
+                    replyBundle.putCharSequence(remoteInput.resultKey, replyText)
+                    val replyIntent = android.content.Intent()
+                    android.app.RemoteInput.addResultsToIntent(arrayOf(remoteInput), replyIntent, replyBundle)
+                    action.actionIntent.send(this@TruecallerNotificationListenerService, 0, replyIntent)
+                    Log.d("TruecallerNL", "WhatsApp reply part ${index + 1}/${replies.size} sent")
+                } catch (e: Exception) {
+                    Log.e("TruecallerNL", "Failed to send WhatsApp reply part ${index + 1}", e)
                 }
             }
+        }
+    }
+
+    /**
+     * Matches an incoming WhatsApp sender against the user's per-number reply rules.
+     * The notification title is the contact name for saved contacts and the raw
+     * number for unsaved ones, so we try digit matching, name matching, then a
+     * contacts-database lookup of the title.
+     */
+    private fun findNumberReplyRule(
+        senderTitle: String,
+        rules: List<com.example.data.repository.NumberReplyRule>
+    ): com.example.data.repository.NumberReplyRule? {
+        if (rules.isEmpty()) return null
+        val titleDigits = normalizePhoneDigits(senderTitle)
+        for (rule in rules) {
+            val ruleDigits = normalizePhoneDigits(rule.number)
+            if (ruleDigits.length < 7) continue
+            // 1. Direct digit match (unsaved numbers appear as digits in the title)
+            if (titleDigits.length >= 7 &&
+                (titleDigits.endsWith(ruleDigits) || ruleDigits.endsWith(titleDigits))) {
+                return rule
+            }
+            // 2. Name match (saved contacts appear as names in the title)
+            if (rule.name.isNotBlank() && senderTitle.contains(rule.name, ignoreCase = true)) {
+                return rule
+            }
+            // 3. Resolve the title through the contacts database
+            val resolved = resolveTitleToNumber(senderTitle)
+            if (resolved != null) {
+                val resolvedDigits = normalizePhoneDigits(resolved)
+                if (resolvedDigits.length >= 7 &&
+                    (resolvedDigits.endsWith(ruleDigits) || ruleDigits.endsWith(resolvedDigits))) {
+                    return rule
+                }
+            }
+        }
+        return null
+    }
+
+    private fun resolveTitleToNumber(title: String): String? {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CONTACTS)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) return null
+        return try {
+            val uri = android.net.Uri.withAppendedPath(
+                android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                android.net.Uri.encode(title)
+            )
+            contentResolver.query(
+                uri,
+                arrayOf(android.provider.ContactsContract.PhoneLookup.NUMBER),
+                null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(android.provider.ContactsContract.PhoneLookup.NUMBER)
+                    if (idx >= 0) cursor.getString(idx) else null
+                } else null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 }
