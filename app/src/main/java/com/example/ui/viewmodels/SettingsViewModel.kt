@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.repository.SettingsRepository
+import com.example.data.repository.NumberReplyRule
+import com.example.data.repository.numberReplyRulesToJson
+import com.example.data.repository.parseNumberReplyRules
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -48,6 +51,7 @@ data class SettingsState(
     val vipReplyMsg: String = "",
     val standardReplyMsg: String = "",
     val unknownReplyMsg: String = "",
+    val numberReplyRules: List<NumberReplyRule> = emptyList(),
     val selectedSimId: String? = null,
     val showKjCompanion: Boolean = true,
     val showCalls: Boolean = true,
@@ -125,6 +129,7 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
                         vipReplyMsg = prefs[SettingsRepository.VIP_REPLY_MSG] ?: "",
                         standardReplyMsg = prefs[SettingsRepository.STANDARD_REPLY_MSG] ?: "",
                         unknownReplyMsg = prefs[SettingsRepository.UNKNOWN_REPLY_MSG] ?: "",
+                        numberReplyRules = parseNumberReplyRules(prefs[SettingsRepository.WHATSAPP_NUMBER_REPLIES] ?: ""),
                         selectedSimId = prefs[SettingsRepository.SELECTED_SIM_ID],
                         showKjCompanion = prefs[SettingsRepository.SHOW_KJ_COMPANION] ?: true,
                         showCalls = prefs[SettingsRepository.SHOW_CALLS] ?: true,
@@ -226,6 +231,10 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
     fun updateVipReplyMsg(value: String) { _uiState.update { it.copy(vipReplyMsg = value) }; viewModelScope.launch { settingsRepository.updateString(SettingsRepository.VIP_REPLY_MSG, value) } }
     fun updateStandardReplyMsg(value: String) { _uiState.update { it.copy(standardReplyMsg = value) }; viewModelScope.launch { settingsRepository.updateString(SettingsRepository.STANDARD_REPLY_MSG, value) } }
     fun updateUnknownReplyMsg(value: String) { _uiState.update { it.copy(unknownReplyMsg = value) }; viewModelScope.launch { settingsRepository.updateString(SettingsRepository.UNKNOWN_REPLY_MSG, value) } }
+    fun setNumberReplyRules(rules: List<NumberReplyRule>) {
+        _uiState.update { it.copy(numberReplyRules = rules) }
+        viewModelScope.launch { settingsRepository.updateString(SettingsRepository.WHATSAPP_NUMBER_REPLIES, numberReplyRulesToJson(rules)) }
+    }
     fun updateSelectedSimId(value: String?) { _uiState.update { it.copy(selectedSimId = value) }; viewModelScope.launch { if (value == null) settingsRepository.removeKey(SettingsRepository.SELECTED_SIM_ID) else settingsRepository.updateString(SettingsRepository.SELECTED_SIM_ID, value) } }
     fun updateShowKjCompanion(value: Boolean) { _uiState.update { it.copy(showKjCompanion = value) }; viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.SHOW_KJ_COMPANION, value) } }
     fun updateShowCalls(value: Boolean) { _uiState.update { it.copy(showCalls = value) }; viewModelScope.launch { settingsRepository.updateBoolean(SettingsRepository.SHOW_CALLS, value) } }
